@@ -4,7 +4,7 @@
  *   <script src="https://YOUR-APP/widget.js" data-assistant="ASSISTANT_ID" async></script>
  *
  * Optional attributes: data-lang="tr|en", data-position="right|left", data-open="true".
- * Everything renders inside a closed Shadow DOM, so host-page CSS can't leak in and ours can't leak out.
+ * Everything renders inside a Shadow DOM, so host-page CSS can't leak in and ours can't leak out.
  * All text is inserted with textContent (never innerHTML).
  */
 
@@ -160,7 +160,7 @@ function safeStorage(): Storage | null {
 
   const host = document.createElement("div");
   host.setAttribute("data-ai-support-assistant", "");
-  const root = host.attachShadow({ mode: "closed" });
+  const root = host.attachShadow({ mode: "open" });
   const style = el("style");
   style.textContent = STYLES;
   root.appendChild(style);
