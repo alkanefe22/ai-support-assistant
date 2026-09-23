@@ -40,6 +40,8 @@ export function demoAnswer(question: string, hits: ScoredChunk[]): string {
     .flatMap((line) => splitSentences(line.replace(/^[-*•]\s+/, "")))
     // never repeat instruction-like text from the knowledge base
     .filter((s) => !looksLikeInjection(s));
+  // Short FAQ answers are returned whole: "No, we only …" must keep its "No".
+  if (sentences.length <= 3) return sentences.join(" ");
 
   const scored = sentences.map((s, i) => ({
     s,

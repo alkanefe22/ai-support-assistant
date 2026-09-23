@@ -3,6 +3,7 @@ import { ChatError, HANDOFF_MESSAGE, handleChat } from "@/lib/chat";
 import type { LlmProvider } from "@/lib/llm";
 import { NO_ANSWER } from "@/lib/prompt";
 import { localEmbedder } from "@/lib/rag/embeddings";
+import { ingestDocument } from "@/lib/rag/ingest";
 import { DEMO_ASSISTANT_ID } from "@/lib/seed";
 import { seededStore, tempStore } from "./helpers";
 
@@ -18,6 +19,25 @@ describe("chat in demo mode (no API calls)", () => {
     expect(res.answer).toContain("6.500 TL");
     expect(res.sources[0]).toMatchObject({ documentTitle: "Sıkça Sorulan Sorular (TR)" });
     expect(res.sources[0].heading).toMatch(/beyazlatma/);
+  });
+
+  it("returns short FAQ answers whole (does not drop a leading 'No')", async () => {
+    const d = await deps();
+    await ingestDocument(
+      d.store,
+      {
+        assistantId: DEMO_ASSISTANT_ID,
+        title: "Ek",
+        lang: "tr",
+        sourceType: "faq",
+        text: "S: Göz muayenesi yapıyor musunuz?\nC: Hayır, yalnızca diş tedavisi yapıyoruz. Bir göz doktoruna başvurun.",
+      },
+      localEmbedder,
+    );
+    const res = await handleChat({ assistantId: DEMO_ASSISTANT_ID, message: "Göz muayenesi yapıyor musunuz?" }, d);
+    expect(res.answered).toBe(true);
+    expect(res.answer).toBe("Hayır, yalnızca diş tedavisi yapıyoruz. Bir göz doktoruna başvurun.");
+    expect(res.sources[0].documentTitle).toBe("Ek");
   });
 
   it("answers in English with English sources", async () => {
