@@ -4,7 +4,7 @@
 
 MVP bitti ve demo modunda uçtan uca çalışıyor: bilgi tabanı → hibrit arama → kaynaklı cevap / "bilmiyorum" →
 lead formu → yönetim paneli. Hiçbir canlı API çağrısı yapılmadı, hiçbir şey push/deploy edilmedi, global paket
-kurulmadı, hesap ayarı değiştirilmedi. Tüm iş yerel git geçmişinde (7 commit).
+kurulmadı, hesap ayarı değiştirilmedi. Tüm iş yerel git geçmişinde (7 commit, bu düzeltme dahil).
 
 ## Ne bitti
 
