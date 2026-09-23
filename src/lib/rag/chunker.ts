@@ -33,10 +33,10 @@ function toSections(text: string): Section[] {
   for (const rawLine of lines) {
     const line = rawLine.trim().replace(/^>\s?/, "");
     const md = line.match(MD_HEADING);
-    const faq = !md && line.match(FAQ_QUESTION);
-    if (md || faq) {
+    const heading = md?.[1] ?? line.match(FAQ_QUESTION)?.[1];
+    if (heading) {
       flush();
-      sections.push({ heading: (md ? md[1] : faq![1]).trim(), paragraphs: [] });
+      sections.push({ heading: heading.trim(), paragraphs: [] });
       continue;
     }
     if (!line) {
