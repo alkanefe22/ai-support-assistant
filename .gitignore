@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+coverage/
+.env
+.env.local
+data/db.json
+data/db.*.json
+data/tmp/
+*.tsbuildinfo
+next-env.d.ts
+public/widget.js
