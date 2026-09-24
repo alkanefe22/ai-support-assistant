@@ -17,7 +17,7 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 188 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 189 otomatik test + tarayıcıda elle doğrulandı |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
@@ -183,6 +183,7 @@ BASE_URL=http://localhost:3000 npm run screenshots
 | `OLLAMA_URL` / `OLLAMA_MODEL` | `http://localhost:11434` / `gemma3:12b` | Yerel Ollama sunucusu ve cevap modeli. |
 | `OLLAMA_EMBEDDING_MODEL` | `bge-m3` | `EMBEDDING_PROVIDER=ollama` iken kullanılan yerel embedding modeli (çok dilli). |
 | `OLLAMA_TIMEOUT_MS` | `120000` | Yerel model ilk yüklemede yavaş olabilir. |
+| `OLLAMA_THINK` | — | Düşünen modellerde (qwen3.x vb.) `false`: düşünme aşaması cevap bütçesini yemesin. Boşsa gönderilmez. |
 | `RETRIEVAL_WEIGHT_COS` / `RETRIEVAL_MIN_SCORE` / `RETRIEVAL_MIN_COVERAGE` | — | Anlamsal embedding için "bilmiyorum" eşiği. Boşsa `gemini-embedding-2` kalibrasyonu kullanılır; başka modelde `npm run calibrate` çıktısını yapıştırın. |
 | `PUBLIC_DEMO` | — | `true` ise panel herkese **salt okunur** açılır (bkz. aşağısı). |
 | `RATE_LIMIT_PER_MINUTE` | `8` | IP + asistan başına dakikalık soru sayısı. |
@@ -286,7 +287,7 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 
 ## Testler
 
-`npm test` — 188 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 189 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.

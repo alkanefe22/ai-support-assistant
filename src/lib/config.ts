@@ -41,6 +41,9 @@ export function getConfig() {
     ollamaEmbeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || "bge-m3",
     // local models can take a while on first load (weights into VRAM)
     ollamaTimeoutMs: int("OLLAMA_TIMEOUT_MS", 120_000),
+    // Reasoning models (qwen3.x, …): "false" stops the thinking phase from eating the output budget.
+    // Unset = don't send the field at all (for models without a thinking mode).
+    ollamaThink: process.env.OLLAMA_THINK === "true" ? true : process.env.OLLAMA_THINK === "false" ? false : undefined,
     rateLimitPerMinute: int("RATE_LIMIT_PER_MINUTE", 8),
     dailyRequestLimit: int("DAILY_REQUEST_LIMIT", 300),
     maxQuestionChars: int("MAX_QUESTION_CHARS", 500),

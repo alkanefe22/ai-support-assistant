@@ -10,7 +10,7 @@ import { seededStore } from "./helpers";
 
 const KEYS = [
   "AI_PROVIDER", "EMBEDDING_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_EMBEDDING_MODEL",
-  "RETRIEVAL_MIN_SCORE", "RETRIEVAL_WEIGHT_COS", "RETRIEVAL_MIN_COVERAGE", "GEMINI_API_KEY",
+  "RETRIEVAL_MIN_SCORE", "RETRIEVAL_WEIGHT_COS", "RETRIEVAL_MIN_COVERAGE", "GEMINI_API_KEY", "OLLAMA_THINK",
 ] as const;
 const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
 
@@ -79,6 +79,15 @@ describe("ollama chat", () => {
       ],
       options: { temperature: 0.1, num_predict: 300 },
     });
+  });
+
+  it("sends think:false only when OLLAMA_THINK is set (reasoning models)", async () => {
+    mockFetch(() => ({ message: { content: "ok" } }));
+    await ollamaGenerate({ system: "", user: "", maxOutputTokens: 50 }, "m");
+    expect(calls[0].body).not.toHaveProperty("think");
+    process.env.OLLAMA_THINK = "false";
+    await ollamaGenerate({ system: "", user: "", maxOutputTokens: 50 }, "qwen3.5:9b");
+    expect(calls[1].body).toMatchObject({ think: false });
   });
 
   it("never shows a reasoning model's <think> block to the visitor", async () => {

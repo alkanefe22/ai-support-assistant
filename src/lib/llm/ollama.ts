@@ -18,6 +18,7 @@ export async function ollamaGenerate(input: GenerateInput, model: string): Promi
         { role: "user", content: input.user },
       ],
       options: { temperature: 0.1, num_predict: input.maxOutputTokens },
+      ...(cfg.ollamaThink === undefined ? {} : { think: cfg.ollamaThink }),
     }),
     signal: AbortSignal.timeout(cfg.ollamaTimeoutMs),
   });
