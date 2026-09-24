@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { getConfig } from "./config";
 import { getLlm, type LlmProvider } from "./llm";
-import { demoAnswer, recordedReply } from "./llm/demo";
-import { buildPrompt, NO_ANSWER } from "./prompt";
+import { demoAnswer } from "./llm/demo";
+import { buildChatFallbackPrompt, buildPrompt, looksLikeInjection, NO_ANSWER, parseChatReply } from "./prompt";
 import { getEmbedder, type Embedder } from "./rag/embeddings";
 import { retrieve, type ScoredChunk } from "./rag/retrieval";
 import { detectLang } from "./rag/text";
+import { classifySmallTalk, smallTalkReply } from "./smalltalk";
 import type { Store } from "./store";
 import { displayNames, type ChatResult, type Conversation, type Lang, type SourceRef, type UnansweredQuestion } from "./types";
 
@@ -94,17 +95,36 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
   let sources: SourceRef[] = [];
   let failReason: UnansweredQuestion["reason"] | null = null;
 
-  const small = recordedReply(message, lang);
-  if (small) {
-    answer = small;
+  const names = displayNames(assistant, lang);
+  const talk = classifySmallTalk(message);
+  if (talk) {
+    // greetings, thanks, "ok", "?" … are answered for free and never open the lead form
+    answer = smallTalkReply(talk, lang, names.businessName);
     answered = true;
   } else {
     const chunks = await store.getChunks(assistant.id);
     const result = await retrieve(message, chunks, deps.embedder ?? getEmbedder(), { lang });
     if (!result.confident) {
       failReason = "no_match";
+      // Live mode: let the model answer chit-chat the rules above missed ("naber kanka nasıl gidiyor").
+      // Jailbreak-looking messages never reach the model.
+      if (llm && !looksLikeInjection(message)) {
+        const fb = buildChatFallbackPrompt({ message, assistantName: names.name, businessName: names.businessName, lang });
+        try {
+          const reply = parseChatReply(
+            await llm.generate({ system: fb.system, user: fb.user, maxOutputTokens: Math.min(120, cfg.maxOutputTokens) }),
+          );
+          if (reply) {
+            answer = reply;
+            answered = true;
+            failReason = null;
+          }
+        } catch (err) {
+          // no KB match anyway: fall through to the normal hand-off
+          console.error("[chat] chat fallback error", err instanceof Error ? err.message : err);
+        }
+      }
     } else if (llm) {
-      const names = displayNames(assistant, lang);
       const prompt = buildPrompt({
         question: message,
         hits: result.hits,

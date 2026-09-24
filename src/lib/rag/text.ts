@@ -23,6 +23,7 @@ const STOPWORDS = new Set(
   can could would should will shall may might must i you we they he she it my your our their
   what how why when which who whom this that these those there here please hello hi thanks
   about into than then so if not no yes any some me us them have has had get got
+  kanka knk abi abla hocam dostum bro slm mrb selamlar merhabalar sa hey naber tsk tesekkurler sagol
   `
     .split(/\s+/)
     .filter(Boolean),

@@ -17,7 +17,7 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 104 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 178 otomatik test + tarayıcıda elle doğrulandı |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
@@ -29,6 +29,7 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 - **Kaynaklı cevap:** Her cevabın altında hangi belgenin hangi bölümünden geldiği açılır kutuda gösterilir.
 - **Uydurmama:** Güven eşiğinin altındaki sorular LLM'e hiç gönderilmez; model de bağlamda cevap yoksa `[[NO_ANSWER]]` döndürmek zorundadır.
 - **Lead toplama:** Cevaplanamayan soruda widget içinde KVKK onaylı iletişim formu açılır.
+- **Doğal sohbet:** "slm", "mrb", "tşk", "tamam", "?" ve yazım hataları ("merhaa") API çağrısı olmadan tanınır, lead formu açılmaz. Canlı modda kurallara uymayan sohbet mesajlarını model yanıtlar; bilgi isteyen mesajlar yine yalnızca bilgi tabanından cevaplanır, modelin sohbet cevabında rakam/e-posta/link varsa reddedilir.
 - **Yönetim paneli:** Bilgi tabanı yükleme/silme/yeniden indeksleme, asistan adı/rengi/karşılama mesajı (TR/EN), izinli domainler, sohbet geçmişi, cevaplanamayan sorular (en çok sorulan üstte), leadler + CSV dışa aktarma, birden fazla asistan.
 - **Public salt okunur demo:** Ziyaretçiler paneli şifresiz gezebilir; yükleme, silme ve ayar değiştirme kapalıdır, ziyaretçi iletişim bilgileri maskelenir.
 - **Widget:** Tek `<script>`, bağımlılıksız, **10,6 KB (gzip ~4,3 KB)**, Shadow DOM ile host sitenin stilini bozmaz, mobilde tam ekran, klavye erişilebilir, tüm metin `textContent` ile basılır (XSS yok).
@@ -277,13 +278,14 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 
 ## Testler
 
-`npm test` — 104 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 178 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
 - `injection.test.ts` — tespit, kaçışlama, veri bloğu yapısı, zehirli belge, jailbreak, sızıntı filtresi.
 - `readonly.test.ts` — erişim matrisi; public demoda gerçek server action'ların (Next.js `cookies`/`redirect` taklit edilerek) hiçbir veriyi değiştirmediği, CSV'nin `403` döndüğü, sahibin giriş yapıp tam yetki aldığı; e-posta/telefon/isim maskeleme.
 - `parse.test.ts` — test içinde üretilen gerçek bir PDF'ten metin çıkarıp cevaplanabilir hale getirme.
+- `smalltalk.test.ts` — selamlaşma/teşekkür/onay ve yazım hataları, gerçek soruların selam sanılmaması, canlı modda sohbet cevabının kuralları (uydurma rakam/e-posta/link reddi).
 - `i18n.test.ts` — TR/EN asistan ve işletme adları: geri düşme, widget ayar ucu, İngilizce ziyaretçide sistem promptu.
 - `units.test.ts` — chunker, Türkçe normalizasyon, embedding, rate limiter.
 
