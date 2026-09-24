@@ -12,6 +12,8 @@
 export type Outcome = "answer" | "chat" | "handoff";
 
 export interface EvalCase {
+  /** assistant id; the dental demo when omitted */
+  biz?: string;
   cat: string;
   lang: "tr" | "en";
   q: string;

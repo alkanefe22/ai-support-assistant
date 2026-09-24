@@ -19,6 +19,21 @@ const MD_HEADING = /^#{1,6}\s+(.+?)\s*#*$/;
 const FAQ_QUESTION = /^(?:(?:S|Soru|Q|Question)\s*[:.-]\s*)?(.{3,160}\?)$/i;
 const FAQ_ANSWER_PREFIX = /^(?:C|Cevap|A|Answer)\s*[:.-]\s*/i;
 
+/**
+ * Plain-text documents (copied from Word / PDF) mark sections differently from markdown:
+ * a short line in CAPITALS ("İADE VE DEĞİŞİM POLİTİKASI") or a short label ending in a colon
+ * ("Garanti koşulları:"). Without this, a whole policy ends up under the previous FAQ question.
+ */
+function plainHeading(line: string): string | null {
+  if (line.length < 4 || line.length > 80 || /[.!?]$/.test(line)) return null;
+  const letters = line.replace(/[^\p{L}]/gu, "");
+  if (letters.length >= 4 && letters === letters.toLocaleUpperCase("tr") && letters !== letters.toLocaleLowerCase("tr")) {
+    return line;
+  }
+  const label = line.match(/^([^:]{3,60}):$/);
+  return label ? label[1].trim() : null;
+}
+
 function toSections(text: string): Section[] {
   const lines = text.replace(/\r\n?/g, "\n").split("\n");
   const sections: Section[] = [{ heading: "", paragraphs: [] }];
@@ -33,7 +48,7 @@ function toSections(text: string): Section[] {
   for (const rawLine of lines) {
     const line = rawLine.trim().replace(/^>\s?/, "");
     const md = line.match(MD_HEADING);
-    const heading = md?.[1] ?? line.match(FAQ_QUESTION)?.[1];
+    const heading = md?.[1] ?? line.match(FAQ_QUESTION)?.[1] ?? (line ? plainHeading(line) : null);
     if (heading) {
       flush();
       sections.push({ heading: heading.trim(), paragraphs: [] });

@@ -12,6 +12,7 @@ import {
   parseTriage,
   type Triage,
 } from "./prompt";
+import { assistantThresholds } from "./rag/autocalibrate";
 import { getEmbedder, type Embedder } from "./rag/embeddings";
 import { retrieve, type ScoredChunk } from "./rag/retrieval";
 import { detectLang, normalize } from "./rag/text";
@@ -134,14 +135,24 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
     // With a model, hand it more candidates (chunks are short; the model picks and cites the right
     // one). Measured on the eval set: the right section is in the top 4 for 83/85, top 6 for 84/85.
     const topK = llm ? 6 : 4;
-    let result = await retrieve(message, chunks, embedder, { lang, strictSubject: !llm, topK });
+    const thresholds = assistantThresholds(assistant, embedder.model, lang); // per-business calibration
+    let result = await retrieve(message, chunks, embedder, { lang, strictSubject: !llm, topK, thresholds });
     // Live mode, short follow-ups ("peki ne kadar sürüyor?"): also search together with the previous
     // question and keep whichever is more confident. Not in demo mode: there is no model to reject
     // an unrelated follow-up ("dolar kuru kaç?") that the combined query would match.
     const previousQuestion = [...history].reverse().find((m) => m.role === "user")?.text;
     if (llm && previousQuestion && message.split(/\s+/).length <= 8) {
-      const withContext = await retrieve(`${previousQuestion} ${message}`, chunks, embedder, { lang, topK });
-      if (withContext.confident && (!result.confident || withContext.topScore > result.topScore)) result = withContext;
+      const withContext = await retrieve(`${previousQuestion} ${message}`, chunks, embedder, { lang, topK, thresholds });
+      if (withContext.confident) {
+        // keep both candidate sets ("kargosu ücretli mi?" after a returns question needs the returns
+        // section, not only the order-shipping one); the model resolves the reference from the conversation
+        const byId = new Map<string, ScoredChunk>();
+        for (const h of [...withContext.hits, ...(result.confident ? result.hits : [])]) {
+          if ((byId.get(h.chunk.id)?.score ?? -1) < h.score) byId.set(h.chunk.id, h);
+        }
+        const hits = [...byId.values()].sort((a, b) => b.score - a.score).slice(0, topK);
+        result = { ...withContext, hits, topScore: hits[0].score };
+      }
     }
 
     if (!llm) {
@@ -182,36 +193,57 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
         }
       };
 
-      let outcome = result.confident ? await answerFrom(result.hits) : null;
+      /** One cheap call: rewrite the request into standalone search queries, or recognise small talk. */
+      const runTriage = async (): Promise<Triage> => {
+        const tp = buildTriagePrompt({ message, assistantName: names.name, businessName: names.businessName, lang, history });
+        try {
+          return parseTriage(await llm.generate({ system: tp.system, user: tp.user, maxOutputTokens: Math.min(120, cfg.maxOutputTokens) }));
+        } catch (err) {
+          console.error("[chat] triage error", err instanceof Error ? err.message : err);
+          return { kind: "none" };
+        }
+      };
+      /** Searches every alternative phrasing; keeps the confident hits (best score per chunk). */
+      const searchAll = async (queries: string[], extra: ScoredChunk[] = []) => {
+        const best = new Map<string, ScoredChunk>();
+        for (const h of extra) best.set(h.chunk.id, h);
+        for (const q of queries.filter((x) => normalize(x) !== normalize(message))) {
+          const again = await retrieve(q, chunks, embedder, { lang, topK, thresholds });
+          if (!again.confident) continue;
+          for (const h of again.hits) if ((best.get(h.chunk.id)?.score ?? -1) < h.score) best.set(h.chunk.id, h);
+        }
+        return [...best.values()].sort((a, b) => b.score - a.score).slice(0, topK);
+      };
+      const sameIds = (a: ScoredChunk[], b: ScoredChunk[]) => a.map((h) => h.chunk.id).join() === b.map((h) => h.chunk.id).join();
+
+      const injection = looksLikeInjection(message);
+      let triage: Triage | null = null;
+      let meaning: string | undefined;
+
+      // Short follow-ups ("kargosu ücretli mi?" after a returns question) are resolved into a
+      // standalone question BEFORE answering: otherwise the model answers the literal words
+      // ("order shipping costs") instead of what the visitor means ("return shipping").
+      if (!injection && history.length > 0 && message.split(/\s+/).length <= 6) {
+        triage = await runTriage();
+        if (triage.kind === "search") {
+          meaning = triage.queries[0];
+          const hits = await searchAll(triage.queries, result.confident ? result.hits : []);
+          if (hits.length) result = { ...result, hits, confident: true, topScore: hits[0].score };
+        }
+      }
+
+      let outcome = result.confident ? await answerFrom(result.hits, meaning) : null;
       failReason = outcome === null ? "no_match" : typeof outcome === "string" ? outcome : null;
 
-      // Second chance (one extra call): the words didn't find it, or found the wrong sections.
-      // The model either rewrites the request into a clear search query (synonyms, symptoms,
-      // follow-ups resolved with the conversation) or recognises small talk.
-      // Skipped when the provider is failing and for jailbreak attempts.
+      // Second chance: the words didn't find it, or found the wrong sections. The model rewrites
+      // the request into clear search queries (synonyms, symptoms, follow-ups) or recognises small
+      // talk. Skipped when the provider is failing and for jailbreak attempts.
       if (typeof outcome !== "object" || outcome === null) {
-        if (failReason !== "error" && !looksLikeInjection(message)) {
-          const tp = buildTriagePrompt({ message, assistantName: names.name, businessName: names.businessName, lang, history });
-          let triage: Triage = { kind: "none" };
-          try {
-            triage = parseTriage(
-              await llm.generate({ system: tp.system, user: tp.user, maxOutputTokens: Math.min(120, cfg.maxOutputTokens) }),
-            );
-          } catch (err) {
-            console.error("[chat] triage error", err instanceof Error ? err.message : err);
-          }
+        if (failReason !== "error" && !injection) {
+          triage ??= await runTriage();
           if (triage.kind === "search") {
-            // search every alternative phrasing; merge the confident hits (best score per chunk)
-            const best = new Map<string, ScoredChunk>();
-            for (const q of triage.queries.filter((x) => normalize(x) !== normalize(message))) {
-              const again = await retrieve(q, chunks, embedder, { lang, topK });
-              if (!again.confident) continue;
-              for (const h of again.hits) if ((best.get(h.chunk.id)?.score ?? -1) < h.score) best.set(h.chunk.id, h);
-            }
-            const merged = [...best.values()].sort((a, b) => b.score - a.score).slice(0, topK);
-            const sameAsBefore =
-              result.confident && merged.map((h) => h.chunk.id).join() === result.hits.map((h) => h.chunk.id).join();
-            if (merged.length && !sameAsBefore) {
+            const merged = await searchAll(triage.queries);
+            if (merged.length && !(result.confident && sameIds(merged, result.hits))) {
               // the first query is the resolved meaning ("kanal tedavisi fiyatı" for "peki fiyatı ne?")
               const second = await answerFrom(merged, triage.queries[0]);
               if (typeof second === "object") outcome = second;

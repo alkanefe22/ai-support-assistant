@@ -26,6 +26,20 @@ describe("chunker", () => {
     for (const c of chunks) expect(c.text.length).toBeLessThanOrEqual(300 + 120);
   });
 
+  it("recognises plain-text section titles in capitals or ending with a colon", () => {
+    const chunks = chunkText(
+      "S: Kargo ücretli mi?\nC: 750 TL üzeri ücretsiz.\n\nİADE VE DEĞİŞİM POLİTİKASI\n\nÜrünleri 14 gün içinde iade edebilirsiniz.\n\nGaranti koşulları:\nİki yıl garanti verilir.",
+    );
+    expect(chunks.map((c) => c.heading)).toEqual(["Kargo ücretli mi?", "İADE VE DEĞİŞİM POLİTİKASI", "Garanti koşulları"]);
+    expect(chunks[1].text).toBe("Ürünleri 14 gün içinde iade edebilirsiniz.");
+  });
+
+  it("does not mistake ordinary sentences, prices or codes for titles", () => {
+    const chunks = chunkText("## Fiyat\nTSE belgeli cihaz.\nFiyat: 7.900 TL dahil.\nKDV DAHİL FİYATTIR.");
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].heading).toBe("Fiyat");
+  });
+
   it("returns nothing for empty input", () => {
     expect(chunkText("  \n\n ")).toEqual([]);
   });

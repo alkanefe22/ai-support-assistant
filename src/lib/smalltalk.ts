@@ -90,6 +90,8 @@ const PHRASES: [RegExp, string][] = [
   [/\bhave an? (nice|good|great|lovely) (day|one|evening|weekend)\b/g, "goodbye"],
   [/\biyi hafta ?sonlari\b/g, "gorusuruz"],
   [/\bkendin(e|ize) iyi bak(in)?\b/g, "gorusuruz"],
+  [/\b(cok )?yardimci oldu(nuz|n)?\b/g, "tesekkurler"],
+  [/\b(that was|you were|you've been|very|really) (very |so |really )?helpful\b/g, "thanks"],
 ];
 
 function socialPhrases(normalized: string): string {

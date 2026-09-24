@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { checkPassword, createSession, destroySession, requireAdmin, requireWrite } from "@/lib/auth";
-import { ingestDocument, reindexAssistant } from "@/lib/rag/ingest";
+import { ingestDocument, recalibrate, reindexAssistant } from "@/lib/rag/ingest";
 import { extractText, MAX_UPLOAD_BYTES, sourceTypeFor } from "@/lib/rag/parse";
 import { getStore } from "@/lib/store";
 import type { Lang } from "@/lib/types";
@@ -90,7 +90,9 @@ export async function addFaqText(fd: FormData) {
 export async function deleteDocument(fd: FormData) {
   await requireWrite("/admin/knowledge");
   const { assistant } = await currentAssistant();
-  await (await getStore()).deleteDocument(assistant.id, str(fd, "id", 64));
+  const store = await getStore();
+  await store.deleteDocument(assistant.id, str(fd, "id", 64));
+  await recalibrate(store, assistant.id);
   revalidatePath("/admin", "layout");
   back("/admin/knowledge", { ok: "Belge silindi." });
 }

@@ -7,6 +7,18 @@ export interface AssistantSettings {
   /** English display names; empty/missing → the default (Turkish) names above are used. */
   nameEn?: string;
   businessNameEn?: string;
+  /**
+   * "I don't know" thresholds computed from this assistant's own knowledge base
+   * (see rag/autocalibrate.ts). Recomputed whenever documents change.
+   */
+  retrieval?: {
+    model: string;
+    weightCos: number;
+    minScore: Partial<Record<Lang, number>>;
+    /** highest score any off-topic probe reached, for the admin panel */
+    probeMax: Partial<Record<Lang, number>>;
+    calibratedAt: string;
+  };
   color: string;
   welcome: Record<Lang, string>;
   /** Origins allowed to embed the widget. Empty = any origin. */

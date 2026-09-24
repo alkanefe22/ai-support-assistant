@@ -18,7 +18,7 @@ export interface RetrievalResult {
   via?: "semantic" | "lexical";
 }
 
-type Thresholds = { minScore: number; minCoverage: number; weightCos: number };
+export type Thresholds = { minScore: number; minCoverage: number; weightCos: number };
 
 /**
  * Thresholds are per embedding model because cosine scales differ.
@@ -100,8 +100,11 @@ export async function retrieve(
   query: string,
   chunks: Chunk[],
   embedder: Embedder,
-  /** strictSubject: demo mode only (no model to double-check), see below */
-  opts: { lang?: Lang; topK?: number; strictSubject?: boolean } = {},
+  /**
+   * strictSubject: demo mode only (no model to double-check), see below.
+   * thresholds: the assistant's own calibration (rag/autocalibrate.ts), used for semantic models.
+   */
+  opts: { lang?: Lang; topK?: number; strictSubject?: boolean; thresholds?: Thresholds } = {},
 ): Promise<RetrievalResult> {
   const topK = opts.topK ?? 4;
   if (chunks.length === 0 || !query.trim()) return { hits: [], confident: false, topScore: 0 };
@@ -115,7 +118,7 @@ export async function retrieve(
     ? embedder.model
     : LOCAL_EMBEDDING_MODEL;
   const qVec = model === embedder.model ? await embedder.embedQuery(query) : localEmbed(query);
-  const t = thresholdsFor(model);
+  const t = model !== LOCAL_EMBEDDING_MODEL && opts.thresholds ? opts.thresholds : thresholdsFor(model);
 
   const chunkStems = pool.map((c) => new Set(stems(indexTextFor(c))));
   const { scores: covs, unknown } = coverages(stems(query), chunkStems, tokenize(query));

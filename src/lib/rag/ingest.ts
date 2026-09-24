@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { looksLikeInjection } from "../prompt";
 import type { Store } from "../store";
 import type { Chunk, KnowledgeDocument, Lang } from "../types";
+import { calibrateAssistant } from "./autocalibrate";
 import { chunkText } from "./chunker";
 import { getEmbedder, type Embedder } from "./embeddings";
 import { MAX_TEXT_CHARS } from "./parse";
@@ -54,7 +55,21 @@ export async function ingestDocument(
     createdAt: new Date().toISOString(),
   };
   await store.addDocument(doc, chunks);
+  await recalibrate(store, input.assistantId, embedder);
   return doc;
+}
+
+/**
+ * Keeps the assistant's "I don't know" threshold in step with its knowledge base. A failure here
+ * (e.g. the embedding provider is down) must not lose the upload: the previous or default
+ * threshold stays in use.
+ */
+export async function recalibrate(store: Store, assistantId: string, embedder: Embedder = getEmbedder()) {
+  try {
+    await calibrateAssistant(store, assistantId, embedder);
+  } catch (err) {
+    console.error("[ingest] calibration failed", err instanceof Error ? err.message : err);
+  }
 }
 
 /** Re-embeds every chunk with the current embedder (after switching EMBEDDING_PROVIDER). */
@@ -65,5 +80,6 @@ export async function reindexAssistant(store: Store, assistantId: string, embedd
     assistantId,
     chunks.map((c, i) => ({ ...c, embedding: vectors[i], embeddingModel: embedder.model })),
   );
+  await recalibrate(store, assistantId, embedder);
   return chunks.length;
 }
