@@ -149,9 +149,10 @@ describe("end-to-end behaviour against injection", () => {
       { assistantId: DEMO_ASSISTANT_ID, message: "Diş beyazlatma fiyatı ne kadar?", lang: "tr" },
       { store, llm, embedder: localEmbedder },
     );
-    expect(llm.generate).toHaveBeenCalledOnce();
+    // the answer call and the second-chance triage call both leak; neither reaches the visitor
+    expect(llm.generate).toHaveBeenCalled();
     expect(res.answered).toBe(false);
-    expect(res.answer).not.toMatch(/RULES/);
+    expect(res.answer).not.toMatch(/RULES|SEARCH|CHAT|kb_document/);
   });
 
   it("wraps retrieved text in data blocks when calling a real provider", async () => {

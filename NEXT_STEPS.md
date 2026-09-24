@@ -6,7 +6,7 @@ Sırayla ilerle. Her madde tek başına bitirilebilir.
 
 1. `npm install`
 2. `.env.local` yerinde mi kontrol et (repoda yok, yalnızca bu bilgisayarda). Yoksa `.env.example`'dan oluştur.
-3. `npm test` → 234/234 geçmeli.
+3. `npm test` → 260/260 geçmeli.
 
 ## 1. Canlı modu uçtan uca doğrula (~3 dk, 8 sohbet + 10 embedding çağrısı)
 
@@ -21,7 +21,7 @@ Sırayla ilerle. Her madde tek başına bitirilebilir.
 1. Ollama kurulu ve çalışıyor olsun: `ollama pull gemma3:12b` ve `ollama pull bge-m3`.
 2. `.env.local` içinde: `AI_PROVIDER=ollama`, `EMBEDDING_PROVIDER=ollama` (Gemini satırları dursun, geri dönmek için değiştirmen yeter).
 3. `npm run calibrate` → çıktının sonundaki üç `RETRIEVAL_*` satırını `.env.local`'e yapıştır (bge-m3'ün eşiği Gemini'ninkinden farklıdır).
-4. `npm run live-check` → 8 soru, bekleme yok, istediğin kadar tekrarlayabilirsin.
+4. `npm run live-check` (12 soru) ve `npm run eval` (144 soru, ~1,5 dk; `EVAL_REPEAT=3` ile kararlılık). Son sonuç %99,8.
 5. Uygulamayı denemek için `npm run dev`, sonra panelden **Yeniden indeksle** (bilgi tabanı bge-m3 ile yeniden gömülsün).
 
 ## 2. Vercel'e public demo olarak deploy et (~10 dk, ücretsiz)

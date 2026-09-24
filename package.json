@@ -14,7 +14,8 @@
     "calibrate": "tsx scripts/calibrate.ts",
     "live-check": "tsx scripts/live-check.ts",
     "lint": "eslint .",
-    "start:public-demo": "node scripts/serve-public-demo.mjs"
+    "start:public-demo": "node scripts/serve-public-demo.mjs",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
     "next": "^16.3.6",

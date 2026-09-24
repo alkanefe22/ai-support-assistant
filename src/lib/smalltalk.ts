@@ -87,6 +87,9 @@ const PHRASES: [RegExp, string][] = [
   [/\biyi misin(iz)?\b/g, "iyimisin"],
   [/\bhow are (you|u)\b/g, "howdy"],
   [/\bhow is it going\b/g, "howdy"],
+  [/\bhave an? (nice|good|great|lovely) (day|one|evening|weekend)\b/g, "goodbye"],
+  [/\biyi hafta ?sonlari\b/g, "gorusuruz"],
+  [/\bkendin(e|ize) iyi bak(in)?\b/g, "gorusuruz"],
 ];
 
 function socialPhrases(normalized: string): string {

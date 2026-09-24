@@ -1,6 +1,6 @@
 import type { Chunk, Lang } from "../types";
 import { cosine, localEmbed, LOCAL_EMBEDDING_MODEL, type Embedder } from "./embeddings";
-import { stemMatch, stems, synonymsOf } from "./text";
+import { stem, stemMatch, stems, synonymsOf, tokenize } from "./text";
 
 export interface ScoredChunk {
   chunk: Chunk;
@@ -66,30 +66,42 @@ function containsTerm(chunkStems: Set<string>, alternatives: string[]): boolean 
  * weight, so off-topic questions ("do you do eye exams?") score low even if they share
  * one word with the knowledge base.
  */
-function coverages(queryStems: string[], chunkStems: Set<string>[]): number[] {
+// Turkish verb endings (folded): verbs are phrased differently in questions and answers
+// ("bakıyor musunuz" vs "hizmet veriyoruz"), so an unmatched verb says nothing about the topic.
+const VERBISH = /(iyor|uyor|yor|iyo|uyo|abil|ebil|mek|mak|mis|mus|irse|ursa|erse|arsa|ecek|acak|dim|dum|tim|tum|mem|mam|iniz|unuz|onuz|isiniz|usunuz|lim|lum|ir|ur)$/;
+
+function coverages(queryStems: string[], chunkStems: Set<string>[], queryTokens: string[] = []): { scores: number[]; unknown: string[] } {
   const n = chunkStems.length;
   const terms = [...new Set(queryStems)];
   const scores = new Array<number>(n).fill(0);
-  if (terms.length === 0) return scores;
+  /** content words (5+ letters) that occur nowhere in the knowledge base */
+  const unknown: string[] = [];
+  if (terms.length === 0) return { scores, unknown };
   let total = 0;
   for (const q of terms) {
     const alts = [q, ...synonymsOf(q)];
     const matches = chunkStems.map((set) => containsTerm(set, alts));
     const df = matches.filter(Boolean).length;
+    if (df === 0 && q.length >= 5) {
+      // only report it when every word with this stem looks like a noun, not a verb form
+      const words = queryTokens.filter((t) => stem(t) === q);
+      if (words.length === 0 || words.some((w) => !VERBISH.test(w))) unknown.push(q);
+    }
     const idf = Math.log(1 + n / (1 + df));
     total += idf;
     matches.forEach((m, i) => {
       if (m) scores[i] += idf;
     });
   }
-  return scores.map((s) => s / total);
+  return { scores: scores.map((s) => s / total), unknown };
 }
 
 export async function retrieve(
   query: string,
   chunks: Chunk[],
   embedder: Embedder,
-  opts: { lang?: Lang; topK?: number } = {},
+  /** strictSubject: demo mode only (no model to double-check), see below */
+  opts: { lang?: Lang; topK?: number; strictSubject?: boolean } = {},
 ): Promise<RetrievalResult> {
   const topK = opts.topK ?? 4;
   if (chunks.length === 0 || !query.trim()) return { hits: [], confident: false, topScore: 0 };
@@ -106,7 +118,7 @@ export async function retrieve(
   const t = thresholdsFor(model);
 
   const chunkStems = pool.map((c) => new Set(stems(indexTextFor(c))));
-  const covs = coverages(stems(query), chunkStems);
+  const { scores: covs, unknown } = coverages(stems(query), chunkStems, tokenize(query));
 
   const scored = pool.map((chunk, i) => {
     const vec = model === chunk.embeddingModel ? chunk.embedding : localVector(chunk);
@@ -115,7 +127,14 @@ export async function retrieve(
     return { chunk, cosine: cos, coverage: cov, score: t.weightCos * cos + (1 - t.weightCos) * cov };
   });
   const primary = ranked(scored, topK, t);
-  if (primary.confident || model === LOCAL_EMBEDDING_MODEL) return { ...primary, via: model === LOCAL_EMBEDDING_MODEL ? "lexical" : "semantic" };
+  if (model === LOCAL_EMBEDDING_MODEL) {
+    // Word matching alone with no model to double-check (demo mode): if the question's own subject
+    // never occurs in the knowledge base ("anestezi", "dentures"), the remaining generic words
+    // ("tedavi", "how much") would pick an unrelated section. Hand off instead.
+    const confident = primary.confident && !(opts.strictSubject && unknown.length > 0);
+    return { ...primary, confident, via: "lexical" };
+  }
+  if (primary.confident) return { ...primary, via: "semantic" };
 
   // Second chance for semantic models: the typo-tolerant word matcher (the tuned demo-mode
   // search). A semantic model can miss "cocuklara bakiyonuz mu" while stems + trigrams still

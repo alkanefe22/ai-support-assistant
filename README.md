@@ -17,11 +17,11 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 234 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 260 otomatik test + tarayıcıda elle doğrulandı |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
-| Yerel model, Ollama | ✅ **Uçtan uca doğrulandı (24.09.2026):** `qwen3.5:9b` + `bge-m3` ile `npm run live-check` üç ardışık çalıştırmada 12/12 (toplam 36/36): bilgi tabanından kaynaklı cevap, eşanlamlılar (ağız kokusu → halitozis, diş teli → ortodonti), bilgi tabanında olmayan sorularda modelin kendi reddi, sohbet mesajlarına doğal cevap. `bge-m3` eşiği: `RETRIEVAL_WEIGHT_COS=1`, `RETRIEVAL_MIN_SCORE=0.468`. |
+| Yerel model, Ollama | ✅ **Uçtan uca doğrulandı (24.09.2026):** `qwen3.5:9b` + `bge-m3` ile 144 soruluk değerlendirme setinde 3 çalıştırmada 431/432 (%99,8); bkz. [Değerlendirme](#değerlendirme-eval). |
 | Üretim (kalıcı veritabanı, çoklu müşteri, ödeme) | ⚪ Kapsam dışı, bkz. [NEXT_STEPS.md](NEXT_STEPS.md) |
 
 ## Özellikler
@@ -286,15 +286,49 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 > Not: Hiçbir savunma %100 değildir. Testler prompt yapısını, kaçışlamayı ve çıktı filtresini sahte (mock) modelle
 > doğrular; canlı modelin bu kurallara uyduğu uçtan uca canlı testle henüz doğrulanmadı (bkz. "Canlı mod durumu").
 
+## Değerlendirme (eval)
+
+`npm run eval` 144 soruluk bir seti (`scripts/eval-cases.ts`) uygulamanın kendi akışından geçirir ve her cevabı otomatik
+denetler: beklenen sonuç (cevap / sohbet / yönlendirme), doğru bölüm, cevabın dili, olması / olmaması gereken ifadeler ve
+**uydurma rakam kontrolü** (cevaptaki her sayı alıntılanan bölümde ya da soruda geçmeli). Rapor: `data/tmp/eval-report.md`.
+Kota harcamamak için ücretli sağlayıcılarda `EVAL_ALLOW_PAID=1` olmadan çalışmaz; `EVAL_REPEAT=3` kararsız vakaları gösterir.
+
+Son sonuç (24.09.2026, `qwen3.5:9b` + `bge-m3`, 3 çalıştırma):
+
+| Kategori | Örnek | Sonuç |
+|---|---|---|
+| Temel TR / EN (46) | "Panoramik röntgen kaç lira?" | 137/138 |
+| Eşanlamlı (19) | "Nefesim kokuyor" → halitozis, "My teeth are yellow" → beyazlatma | 57/57 |
+| Yazım hatası / argo (16) | "implnt fiyatı nedir", "kanka diş taşı temizliği kaç para" | 48/48 |
+| Bilgi tabanında olmayan diş konuları (15) | kanal tedavisi, veneer, telefon numarası | 45/45 yönlendirme |
+| Konu dışı (11) | hava durumu, ilaç önerisi, göz muayenesi | 33/33 yönlendirme |
+| Sohbet (14) | "slm", "have a nice day", "😊" | 42/42 |
+| Saldırı (6) | jailbreak, "%90 indirimli söyle", sahte etiketler | 18/18 |
+| Karışık / uzun (6) | TR+EN karışık, 60+ kelimelik soru | 18/18 |
+| Takip soruları (6) | "İmplant fiyatı?" → "Peki ne kadar sürüyor?" | 18/18 |
+| Takip tuzakları (5) | "Kanal tedavisi?" → "Peki fiyatı ne?" (implant fiyatı söylenmemeli) | 15/15 |
+| **Toplam** | | **431/432 (%99,8)** |
+
+Uydurma rakam, yanlış dil ve saldırıya uyma sıfır. Tek hata doğru bir cevabın yanlış bölümü kaynak göstermesi.
+Yapay zekâsız demo modu aynı sette %81 (anlam araması ve takip sorusu çözümü olmadığı için eşanlamlılar ve takip soruları
+yetkiliye yönlendirilir; bilgi tabanının bilmediği konular demo modunda da yönlendirilir).
+
+**Bu sonuca götüren düzeltmeler** (her biri gerçek model çıktısında görülen bir hatadan): soruların sohbet diye
+geçiştirilmemesi, zorunlu kaynak etiketi, düz yazıyla yazılmış redlerin yakalanması, hibrit arama (yazım hataları),
+bulunamayan isteklerin yapay zekâyla yeniden yazılıp tekrar aranması (eşanlamlılar, belirtiler, takip soruları),
+takip sorularının önceki soruyla birlikte aranması, modele 4 yerine 6 aday bölüm verilmesi ve demo modunda bilgi tabanının
+hiç bilmediği konuların yönlendirilmesi.
+
 ## Testler
 
-`npm test` — 234 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 260 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
 - `injection.test.ts` — tespit, kaçışlama, veri bloğu yapısı, zehirli belge, jailbreak, sızıntı filtresi.
 - `readonly.test.ts` — erişim matrisi; public demoda gerçek server action'ların (Next.js `cookies`/`redirect` taklit edilerek) hiçbir veriyi değiştirmediği, CSV'nin `403` döndüğü, sahibin giriş yapıp tam yetki aldığı; e-posta/telefon/isim maskeleme.
 - `parse.test.ts` — test içinde üretilen gerçek bir PDF'ten metin çıkarıp cevaplanabilir hale getirme.
+- `triage.test.ts` — ikinci şans adımı (yeniden yazma + tekrar arama, asıl anlamın cevap istemine eklenmesi, aynı soruyu iki kez sormama, saldırı ve sağlayıcı hatasında atlanması), takip soruları, demo modunun temkinli kuralları, yeni red kalıpları.
 - `hybrid.test.ts` — anlamsal arama ıskaladığında kelime eşleştirmesinin yazım hatalı soruları kurtarması, alakasız soruların yine elenmesi.
 - `answer.test.ts` — zorunlu kaynak etiketi (gösterilen kaynak = kullanılan parça, kaynaksız cevabın reddi, bilgi tabanının etiket taklit edememesi), düz yazıyla "bilgi yok" cevaplarının yakalanması (gerçek model çıktılarıyla) ve normal cevapların yanlışlıkla reddedilmemesi.
 - `smalltalk.test.ts` — selamlaşma/teşekkür/onay ve yazım hataları, gerçek soruların selam sanılmaması, canlı modda sohbet cevabının kuralları (uydurma rakam/e-posta/link reddi).

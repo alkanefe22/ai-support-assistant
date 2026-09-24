@@ -3,17 +3,18 @@ import { getConfig } from "./config";
 import { getLlm, type LlmProvider } from "./llm";
 import { demoAnswer } from "./llm/demo";
 import {
-  buildChatFallbackPrompt,
   buildPrompt,
+  buildTriagePrompt,
   looksLikeDecline,
   looksLikeInjection,
   NO_ANSWER,
   parseAnswer,
-  parseChatReply,
+  parseTriage,
+  type Triage,
 } from "./prompt";
 import { getEmbedder, type Embedder } from "./rag/embeddings";
 import { retrieve, type ScoredChunk } from "./rag/retrieval";
-import { detectLang } from "./rag/text";
+import { detectLang, normalize } from "./rag/text";
 import { classifySmallTalk, looksLikeQuestion, smallTalkReply } from "./smalltalk";
 import type { Store } from "./store";
 import { displayNames, type ChatResult, type Conversation, type Lang, type SourceRef, type UnansweredQuestion } from "./types";
@@ -70,6 +71,18 @@ function toSources(hits: ScoredChunk[], opts: { cited?: boolean } = {}): SourceR
     }));
 }
 
+// Words that point back to an earlier message (folded forms).
+const BACK_REFERENCE = new Set([
+  "it", "its", "they", "them", "their", "that", "this", "those", "these", "one", "ones",
+  "o", "bu", "su", "onun", "bunun", "sunun", "onu", "bunu", "ona", "buna", "peki", "fiyati", "ucreti", "suresi",
+]);
+
+/** Short message that refers to something said before ("peki fiyatı?", "and how long does it take?"). */
+export function refersBack(message: string): boolean {
+  const tokens = normalize(message).split(/[^a-z0-9]+/).filter(Boolean);
+  return tokens.length <= 8 && tokens.some((t) => BACK_REFERENCE.has(t));
+}
+
 /** Rejects model output that is empty, declined, or looks like it leaked our instructions. */
 function isUsableAnswer(text: string): boolean {
   if (!text || text.includes(NO_ANSWER) || text.includes("NO_ANSWER")) return false;
@@ -117,61 +130,107 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
     answered = true;
   } else {
     const chunks = await store.getChunks(assistant.id);
-    const result = await retrieve(message, chunks, deps.embedder ?? getEmbedder(), { lang });
-    if (!result.confident) {
-      failReason = "no_match";
-      // Live mode: let the model answer chit-chat the rules above missed ("naber kanka nasıl gidiyor").
-      // Questions and help requests are never sent here (a human follows up), nor are jailbreak attempts.
-      if (llm && !looksLikeInjection(message) && !looksLikeQuestion(message)) {
-        const fb = buildChatFallbackPrompt({ message, assistantName: names.name, businessName: names.businessName, lang });
-        try {
-          const reply = parseChatReply(
-            await llm.generate({ system: fb.system, user: fb.user, maxOutputTokens: Math.min(120, cfg.maxOutputTokens) }),
-          );
-          if (reply) {
-            answer = reply;
-            answered = true;
-            failReason = null;
-          }
-        } catch (err) {
-          // no KB match anyway: fall through to the normal hand-off
-          console.error("[chat] chat fallback error", err instanceof Error ? err.message : err);
-        }
-      }
-    } else if (llm) {
-      const prompt = buildPrompt({
-        question: message,
-        hits: result.hits,
-        assistantName: names.name,
-        businessName: names.businessName,
-        lang,
-        maxContextTokens: cfg.maxContextTokens,
-        history,
-      });
-      try {
-        const out = await llm.generate({
-          system: prompt.system,
-          user: prompt.user,
-          maxOutputTokens: cfg.maxOutputTokens,
-        });
-        // The answer must cite the chunk(s) it used; uncited or "no information" prose is a decline.
-        const parsed = parseAnswer(out, prompt.usedChunks);
-        if (parsed && isUsableAnswer(parsed.text) && !looksLikeDecline(parsed.text)) {
-          answer = parsed.text;
-          answered = true;
-          sources = toSources(parsed.cited, { cited: true });
-        } else {
-          failReason = "model_declined";
-        }
-      } catch (err) {
-        console.error("[chat] LLM error", err instanceof Error ? err.message : err);
-        failReason = "error";
-      }
-    } else {
-      answer = demoAnswer(message, result.hits);
+    const embedder = deps.embedder ?? getEmbedder();
+    // With a model, hand it more candidates (chunks are short; the model picks and cites the right
+    // one). Measured on the eval set: the right section is in the top 4 for 83/85, top 6 for 84/85.
+    const topK = llm ? 6 : 4;
+    let result = await retrieve(message, chunks, embedder, { lang, strictSubject: !llm, topK });
+    // Live mode, short follow-ups ("peki ne kadar sürüyor?"): also search together with the previous
+    // question and keep whichever is more confident. Not in demo mode: there is no model to reject
+    // an unrelated follow-up ("dolar kuru kaç?") that the combined query would match.
+    const previousQuestion = [...history].reverse().find((m) => m.role === "user")?.text;
+    if (llm && previousQuestion && message.split(/\s+/).length <= 8) {
+      const withContext = await retrieve(`${previousQuestion} ${message}`, chunks, embedder, { lang, topK });
+      if (withContext.confident && (!result.confident || withContext.topScore > result.topScore)) result = withContext;
+    }
+
+    if (!llm) {
+      // demo mode: extractive answer, no API call. Without a model a follow-up that points back
+      // ("how long does IT take?", "peki fiyatı?") cannot be resolved: hand off rather than guess.
+      const unresolvedFollowUp = history.length > 0 && refersBack(message);
+      if (result.confident && !unresolvedFollowUp) answer = demoAnswer(message, result.hits);
       answered = answer.length > 0;
       if (answered) sources = toSources(result.hits);
       else failReason = "no_match";
+    } else {
+      /** Asks the model to answer the visitor's ORIGINAL question from the given hits. */
+      const answerFrom = async (
+        hits: ScoredChunk[],
+        meaning?: string,
+      ): Promise<{ text: string; sources: SourceRef[] } | "model_declined" | "error"> => {
+        const prompt = buildPrompt({
+          question: message,
+          hits,
+          assistantName: names.name,
+          businessName: names.businessName,
+          lang,
+          maxContextTokens: cfg.maxContextTokens,
+          history,
+          meaning,
+        });
+        try {
+          const out = await llm.generate({ system: prompt.system, user: prompt.user, maxOutputTokens: cfg.maxOutputTokens });
+          // The answer must cite the chunk(s) it used; uncited or "no information" prose is a decline.
+          const parsed = parseAnswer(out, prompt.usedChunks);
+          if (parsed && isUsableAnswer(parsed.text) && !looksLikeDecline(parsed.text)) {
+            return { text: parsed.text, sources: toSources(parsed.cited, { cited: true }) };
+          }
+          return "model_declined";
+        } catch (err) {
+          console.error("[chat] LLM error", err instanceof Error ? err.message : err);
+          return "error";
+        }
+      };
+
+      let outcome = result.confident ? await answerFrom(result.hits) : null;
+      failReason = outcome === null ? "no_match" : typeof outcome === "string" ? outcome : null;
+
+      // Second chance (one extra call): the words didn't find it, or found the wrong sections.
+      // The model either rewrites the request into a clear search query (synonyms, symptoms,
+      // follow-ups resolved with the conversation) or recognises small talk.
+      // Skipped when the provider is failing and for jailbreak attempts.
+      if (typeof outcome !== "object" || outcome === null) {
+        if (failReason !== "error" && !looksLikeInjection(message)) {
+          const tp = buildTriagePrompt({ message, assistantName: names.name, businessName: names.businessName, lang, history });
+          let triage: Triage = { kind: "none" };
+          try {
+            triage = parseTriage(
+              await llm.generate({ system: tp.system, user: tp.user, maxOutputTokens: Math.min(120, cfg.maxOutputTokens) }),
+            );
+          } catch (err) {
+            console.error("[chat] triage error", err instanceof Error ? err.message : err);
+          }
+          if (triage.kind === "search") {
+            // search every alternative phrasing; merge the confident hits (best score per chunk)
+            const best = new Map<string, ScoredChunk>();
+            for (const q of triage.queries.filter((x) => normalize(x) !== normalize(message))) {
+              const again = await retrieve(q, chunks, embedder, { lang, topK });
+              if (!again.confident) continue;
+              for (const h of again.hits) if ((best.get(h.chunk.id)?.score ?? -1) < h.score) best.set(h.chunk.id, h);
+            }
+            const merged = [...best.values()].sort((a, b) => b.score - a.score).slice(0, topK);
+            const sameAsBefore =
+              result.confident && merged.map((h) => h.chunk.id).join() === result.hits.map((h) => h.chunk.id).join();
+            if (merged.length && !sameAsBefore) {
+              // the first query is the resolved meaning ("kanal tedavisi fiyatı" for "peki fiyatı ne?")
+              const second = await answerFrom(merged, triage.queries[0]);
+              if (typeof second === "object") outcome = second;
+            }
+          } else if (triage.kind === "chat" && !result.confident && !looksLikeQuestion(message)) {
+            // a question never gets a brush-off chat reply: it is handed off to a human instead
+            answer = triage.reply;
+            answered = true;
+            failReason = null;
+          }
+        }
+      }
+
+      if (outcome && typeof outcome === "object") {
+        answer = outcome.text;
+        sources = outcome.sources;
+        answered = true;
+        failReason = null;
+      }
     }
   }
 

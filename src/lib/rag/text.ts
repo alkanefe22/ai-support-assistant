@@ -23,7 +23,7 @@ const STOPWORDS = new Set(
   can could would should will shall may might must i you we they he she it my your our their
   what how why when which who whom this that these those there here please hello hi thanks
   about into than then so if not no yes any some me us them have has had get got
-  kanka knk abi abla hocam dostum bro slm mrb selamlar merhabalar sa hey naber tsk tesekkurler sagol
+  kanka knk abi abla hocam dostum bro slm mrb selamlar merhabalar sa hey naber tsk tesekkurler sagol peki
   `
     .split(/\s+/)
     .filter(Boolean),
@@ -49,10 +49,11 @@ export function stemMatch(a: string, b: string): boolean {
 const SYNONYM_GROUPS: string[][] = [
   ["kids", "child", "cocuk", "bebek"],
   ["adres", "konum", "nered", "where", "addre", "locat", "ulasi"],
-  ["fiyat", "ucret", "price", "cost", "fee", "kac", "much"],
+  ["fiyat", "ucret", "price", "cost", "fee", "kac", "much", "lira", "tl", "para", "tutar"],
   ["saat", "acik", "kapal", "hours", "open", "close"],
   ["taksi", "insta", "vade", "odeme", "payme", "pay"],
-  ["rande", "appoi", "book", "rezer"],
+  ["rande", "appoi", "book", "rezer", "iptal", "cance", "erteleme"],
+  ["sure", "suruy", "surer", "surec", "durat", "long"],
 ];
 
 export function synonymsOf(s: string): string[] {
