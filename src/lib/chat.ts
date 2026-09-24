@@ -14,6 +14,12 @@ export const HANDOFF_MESSAGE: Record<Lang, string> = {
   en: "I don't have information on that, let me connect you with our team. If you leave your contact details, someone will get back to you shortly.",
 };
 
+/** Provider failed (timeout, 503, quota): the answer may well exist, so don't claim "I don't know". */
+export const UNAVAILABLE_MESSAGE: Record<Lang, string> = {
+  tr: "Şu anda yanıt veremiyorum, lütfen biraz sonra tekrar deneyin. İsterseniz iletişim bilgilerinizi bırakın, ekibimiz size dönüş yapsın.",
+  en: "I can't answer right now, please try again in a moment. If you like, leave your contact details and our team will get back to you.",
+};
+
 export class ChatError extends Error {
   constructor(
     public readonly code: "invalid_input" | "not_found" | "too_long",
@@ -133,7 +139,7 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
   }
 
   if (!answered) {
-    answer = HANDOFF_MESSAGE[lang];
+    answer = failReason === "error" ? UNAVAILABLE_MESSAGE[lang] : HANDOFF_MESSAGE[lang];
     await store.addUnanswered({
       id: randomUUID(),
       assistantId: assistant.id,

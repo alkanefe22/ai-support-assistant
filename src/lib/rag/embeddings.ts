@@ -2,7 +2,9 @@ import { resolveEmbeddingProvider } from "../config";
 import { stems } from "./text";
 
 export const LOCAL_EMBEDDING_MODEL = "local-hash-v1";
-export const GEMINI_EMBEDDING_MODEL = "gemini-embedding-001";
+export function geminiEmbeddingModel(): string {
+  return process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-2";
+}
 const LOCAL_DIM = 1024;
 
 function fnv1a(s: string): number {
@@ -45,9 +47,10 @@ export function cosine(a: number[], b: number[]): number {
   return s;
 }
 
-async function geminiEmbed(texts: string[], taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY") {
+export async function geminiEmbed(texts: string[], taskType: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY") {
   const key = process.env.GEMINI_API_KEY!;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_EMBEDDING_MODEL}:batchEmbedContents`;
+  const model = geminiEmbeddingModel();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:batchEmbedContents`;
   const out: number[][] = [];
   for (let i = 0; i < texts.length; i += 100) {
     const batch = texts.slice(i, i + 100);
@@ -56,7 +59,7 @@ async function geminiEmbed(texts: string[], taskType: "RETRIEVAL_DOCUMENT" | "RE
       headers: { "content-type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         requests: batch.map((text) => ({
-          model: `models/${GEMINI_EMBEDDING_MODEL}`,
+          model: `models/${model}`,
           content: { parts: [{ text }] },
           taskType,
           outputDimensionality: 768,
@@ -85,7 +88,7 @@ export const localEmbedder: Embedder = {
 export function getEmbedder(): Embedder {
   if (resolveEmbeddingProvider() === "gemini") {
     return {
-      model: GEMINI_EMBEDDING_MODEL,
+      model: geminiEmbeddingModel(),
       embedDocuments: (texts) => geminiEmbed(texts, "RETRIEVAL_DOCUMENT"),
       embedQuery: async (text) => (await geminiEmbed([text], "RETRIEVAL_QUERY"))[0],
     };

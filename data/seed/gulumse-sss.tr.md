@@ -26,6 +26,9 @@ Diş taşı temizliği ve cila işlemi yaklaşık 30-45 dakika sürer, ücreti 1
 ## Ortodonti ve şeffaf plak tedavisi yapıyor musunuz?
 Evet. Kliniğimizde metal ve seramik braket tedavilerinin yanı sıra şeffaf plak tedavisi de uygulanmaktadır. Tedavi süresi vakaya göre 6 ay ile 24 ay arasında değişir. Ortodonti ücretleri ücretsiz ortodontik değerlendirme sonrasında belirlenir.
 
+## Halitozis tedavisi yapıyor musunuz?
+Evet. Halitozis çoğunlukla dil yüzeyindeki bakteri plağı, diş eti hastalıkları veya çürük dişlerden kaynaklanır. Muayenede nedeni belirleyip diş taşı temizliği, diş eti tedavisi ve dil temizliği önerilerinden oluşan bir plan hazırlarız. Halitozis muayenesi ilk muayene kapsamında ücretsizdir.
+
 ## Çocuklara hizmet veriyor musunuz?
 Evet, pedodonti (çocuk diş hekimliği) uzmanımız 3 yaş ve üzeri çocukları kabul etmektedir. Çocuklar için flor uygulaması 700 TL, fissür örtücü diş başına 600 TL'dir.
 

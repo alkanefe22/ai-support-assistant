@@ -26,6 +26,9 @@ An implant replaces a missing tooth with a titanium screw placed in the jawbone.
 ## Do you offer orthodontics and clear aligners?
 Yes. We offer metal and ceramic braces as well as clear aligner treatment. Treatment takes between 6 and 24 months depending on the case. Orthodontic prices are set after a free orthodontic assessment.
 
+## Do you treat halitosis?
+Yes. Halitosis is usually caused by bacterial plaque on the tongue, gum disease or decayed teeth. At the examination we identify the cause and prepare a plan of professional cleaning, gum treatment and tongue-cleaning advice. The halitosis check is included in the free first examination.
+
 ## Do you treat children?
 Yes, our pediatric dentist sees children aged 3 and over. Fluoride application for children costs 700 TL and fissure sealants cost 600 TL per tooth.
 

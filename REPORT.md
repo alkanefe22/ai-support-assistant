@@ -43,10 +43,21 @@ kurulmadı, hesap ayarı değiştirilmedi. Tüm iş yerel git geçmişinde (7 co
 - curl ile: CORS preflight, 9. istekte `429`, lead doğrulama hataları (`invalid_contact`, `consent_required`), bilinmeyen asistan `404`.
 - `npm run typecheck` ve `npm run build` (Next.js 16.3) temiz.
 
+## Canlı mod denemesi (Gemini, 24.09.2026, kullanıcının anahtarıyla)
+
+- **Modeller:** Anahtar 44 üretim + 3 embedding modeline erişiyor. Gerçek çağrıyla doğrulananlar: sohbet `gemini-3.5-flash`
+  (200, `thinkingBudget: 0` kabul edildi) ve embedding `gemini-embedding-2` (768 boyut). `gemini-3.8-flash` o an 503 verdi.
+- **Eşik kalibrasyonu:** `npm run calibrate` ile yapıldı; ayrıntılar README'de. 37 sorunun 33'ü retrieval kapısında doğru.
+  Eşanlamlıların hepsi (ağız kokusu → halitozis dahil) doğru bölümü buldu. Bilgi tabanında olmayan 4 diş sorusu kapıyı
+  geçiyor; bunları modelin reddetmesi gerekiyor.
+- **Uçtan uca canlı test:** Başarısız oldu. 8 üretim çağrısının hepsi 503, zaman aşımı veya 429 verdi, tekrar denenmedi.
+  Modelin cevap kalitesi ve `[[NO_ANSWER]]` davranışı **doğrulanmadı**.
+- **Düzeltme:** Sağlayıcı hata verdiğinde ziyaretçiye "bilgim yok" denmesi yanıltıcıydı. Artık "şu anda yanıt veremiyorum"
+  deniyor; lead formu yine açılıyor.
+
 ## Eksikler / bilinen sınırlamalar
 
-- **Canlı Gemini/Claude çağrıları hiç çalıştırılmadı** (kural gereği). Kod resmi REST uçlarına göre yazıldı ama gerçek
-  yanıt biçimi, model adları (`gemini-2.5-flash`, `claude-haiku-4-5`) ve `gemini` embedding eşiği (0.55) doğrulanmadı.
+- **Canlı model cevapları henüz doğrulanmadı** (yukarıya bakın). Claude sağlayıcısı hiç denenmedi.
 - **Panelden PDF yükleme butonu tarayıcıda tıklanarak denenmedi** (tarayıcı aracım dosya seçemiyor). PDF ayrıştırma ve
   indeksleme testle doğrulandı; server action yolu (`uploadDocument`) aynı fonksiyonları çağırıyor.
 - `local` embedding anlamsal değil: eşanlamlı/çok farklı ifade edilmiş sorularda (ör. "ağız kokusu" ↔ "halitozis") ıskalar.

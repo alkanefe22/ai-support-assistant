@@ -63,7 +63,7 @@ flowchart LR
   end
 
   DB[("Store<br/>yerel: JSON dosyası<br/>üretim: Postgres + pgvector")]
-  EMB["Embedding<br/>local-hash · gemini-embedding-001"]
+  EMB["Embedding<br/>local-hash · gemini-embedding-2"]
 
   W --> CFG
   W --> CHAT --> RL --> ORCH --> RET --> GATE
@@ -136,9 +136,10 @@ BASE_URL=http://localhost:3000 npm run screenshots
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
 | `AI_PROVIDER` | `demo` | `demo`, `gemini` veya `claude`. İlgili API anahtarı yoksa **her durumda demo moduna düşer**. |
-| `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-2.5-flash` | Gemini ile üretim (ve isteğe bağlı embedding). |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-3.5-flash` | Gemini ile üretim (ve isteğe bağlı embedding). |
+| `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` | `EMBEDDING_PROVIDER=gemini` iken kullanılan embedding modeli. |
 | `ANTHROPIC_API_KEY` / `CLAUDE_MODEL` | — / `claude-haiku-4-5` | Claude ile üretim. |
-| `EMBEDDING_PROVIDER` | `local` | `local` (ücretsiz, çevrimdışı) veya `gemini` (`gemini-embedding-001`). Claude'un embedding API'si olmadığı için Claude modunda `local` kullanılır. Değiştirdikten sonra panelden **Yeniden indeksle**. |
+| `EMBEDDING_PROVIDER` | `local` | `local` (ücretsiz, çevrimdışı) veya `gemini` (`GEMINI_EMBEDDING_MODEL`). Claude'un embedding API'si olmadığı için Claude modunda `local` kullanılır. Değiştirdikten sonra panelden **Yeniden indeksle** (seed ve otomatik kurulum her zaman `local` ile indeksler). |
 | `RATE_LIMIT_PER_MINUTE` | `8` | IP + asistan başına dakikalık soru sayısı. |
 | `DAILY_REQUEST_LIMIT` | `300` | Asistan başına günlük toplam soru. |
 | `MAX_QUESTION_CHARS` | `500` | Soru uzunluğu sınırı. |
@@ -193,6 +194,27 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 > Not: Hiçbir savunma %100 değildir. Canlı modelin gerçek davranışı bu projede **test edilmedi** (maliyet oluşmaması
 > için canlı API çağrısı yapılmadı); testler prompt yapısını, kaçışlamayı ve çıktı filtresini sahte (mock) modelle doğrular.
 
+## Canlı mod kalibrasyonu (Gemini)
+
+`gemini-embedding-2` için "bilmiyorum" eşiği demo bilgi tabanıyla kalibre edildi (`npm run calibrate`). Kotayı korumak
+için her metin **bir kez**, toplam 3 toplu çağrıyla gömülür. Sonuçlar `data/tmp/calibration.json` dosyasına yazılır ve
+eşik araması `npm run calibrate -- --offline` ile API'ye dokunmadan tekrarlanabilir.
+
+| Soru grubu | Örnek | Sonuç (eşik: `0.95 × kosinüs + 0.05 × kapsama ≥ 0.618`) |
+|---|---|---|
+| Alan içi (15) | "Pazar günü açık mısınız?" | 15/15 doğru bölüm, eşik üstü |
+| Eşanlamlı (10) | "Ağzım kötü kokuyor" → *Halitozis*, "Diş teli" → *Ortodonti*, "bad breath" → *halitosis* | 10/10 doğru bölüm, eşik üstü (kelime örtüşmesi 0 olanlar dahil) |
+| Konu dışı (8) | hava durumu, döviz, laptop, göz muayenesi, jailbreak | 8/8 eşik altı |
+| Diş ama bilgi tabanında yok (4) | kanal tedavisi, yirmilik diş, veneer | **eşik üstü**: bunları modelin `[[NO_ANSWER]]` kuralı elemelidir |
+
+Güvenlik payı her iki yönde yaklaşık 0,026; bilgi tabanı büyüdükçe kalibrasyonu yeniden çalıştırın. Yerel (`local`)
+embedding eşanlamlıları yakalayamaz ("ağız kokusu" ↔ "halitozis"), bu yüzden canlı kullanımda Gemini embedding önerilir.
+
+`npm run live-check` modeli uygulamanın kendi akışıyla uçtan uca dener (her soru bir kez, tekrar deneme yok, çağrılar
+arası 15 sn). **Durum (24.09.2026):** ilk koşuda `gemini-3.5-flash` çağrılarının hepsi 503, zaman aşımı veya 429 ile
+başarısız oldu; modelin bilgi tabanında olmayan diş sorularını reddettiği henüz **doğrulanmadı**. Sağlayıcı hata
+verdiğinde ziyaretçiye artık "bilgim yok" yerine "şu anda yanıt veremiyorum" denir.
+
 ## Testler
 
 `npm test` — 77 test (Vitest), hepsi demo modunda, ağ erişimi olmadan:
@@ -213,7 +235,7 @@ için değil. Üretim için önerilen değişiklikler:
 |---|---|---|
 | Veritabanı | `JsonStore` (tek dosya, sıfır kurulum) | **Postgres + pgvector** (ör. Neon, Vercel Marketplace üzerinden). `Store` arayüzü (`src/lib/store/types.ts`) tek değişim noktasıdır; vektör araması `ORDER BY embedding <=> $1` ile DB'ye taşınır. |
 | Rate limit | Bellek içi sliding window (instance başına) | **Upstash Redis** (`@upstash/ratelimit`) — tüm instance'lar arasında paylaşılır. |
-| Embedding | `local-hash-v1` | `gemini-embedding-001` (anlamsal; eşanlamlılar ve farklı ifadeler için belirgin şekilde daha iyi) |
+| Embedding | `local-hash-v1` | `gemini-embedding-2` (anlamsal; eşanlamlılar ve farklı ifadeler için belirgin şekilde daha iyi) |
 | Admin auth | Tek şifre + HMAC cookie | Çok kullanıcılı SaaS için Clerk / Auth.js + işletme başına yetki |
 | Dosya boyutu | Server action 5 MB, belge 4 MB | Büyük PDF'ler için Blob'a yükleme + arka plan işleme |
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ChatError, HANDOFF_MESSAGE, handleChat } from "@/lib/chat";
+import { ChatError, HANDOFF_MESSAGE, handleChat, UNAVAILABLE_MESSAGE } from "@/lib/chat";
 import type { LlmProvider } from "@/lib/llm";
 import { NO_ANSWER } from "@/lib/prompt";
 import { localEmbedder } from "@/lib/rag/embeddings";
@@ -123,6 +123,7 @@ describe("chat with a (mocked) remote model", () => {
       { ...d, llm: model(new Error("503")) },
     );
     expect(res.handoff).toBe(true);
+    expect(res.answer).toBe(UNAVAILABLE_MESSAGE.tr); // not "I don't know": the answer may exist
     expect((await d.store.listUnanswered(DEMO_ASSISTANT_ID))[0].reason).toBe("error");
   });
 

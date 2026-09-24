@@ -16,14 +16,27 @@ export interface RetrievalResult {
   topScore: number;
 }
 
+type Thresholds = { minScore: number; minCoverage: number; weightCos: number };
+
 /**
  * Thresholds are per embedding model because cosine scales differ.
- * Local values were tuned against tests/retrieval.test.ts.
+ * - local: tuned against tests/retrieval.test.ts.
+ * - gemini-embedding-2: calibrated with `npm run calibrate` on the demo KB (24.09.2026).
+ *   Semantic matches ("bad breath" → "halitosis") have zero word overlap, so coverage is not
+ *   required. Dental questions the KB does not cover ("veneers") still score high here;
+ *   the model's [[NO_ANSWER]] rule is the second gate for those.
  */
-const THRESHOLDS: Record<string, { minScore: number; minCoverage: number; weightCos: number }> = {
+const THRESHOLDS: Record<string, Thresholds> = {
   [LOCAL_EMBEDDING_MODEL]: { minScore: 0.3, minCoverage: 0.4, weightCos: 0.5 },
-  "gemini-embedding-001": { minScore: 0.55, minCoverage: 0.15, weightCos: 0.75 },
+  "gemini-embedding-2": { minScore: 0.618, minCoverage: 0, weightCos: 0.95 },
 };
+
+function thresholdsFor(model: string): Thresholds {
+  if (THRESHOLDS[model]) return THRESHOLDS[model];
+  // other Gemini embedding models: closest calibrated values (re-run `npm run calibrate`)
+  if (model.startsWith("gemini-embedding")) return THRESHOLDS["gemini-embedding-2"];
+  return THRESHOLDS[LOCAL_EMBEDDING_MODEL];
+}
 
 export function indexTextFor(c: Pick<Chunk, "heading" | "text">): string {
   // The heading is repeated: for FAQ sources it *is* the question, the strongest signal.
@@ -78,7 +91,7 @@ export async function retrieve(
     ? embedder.model
     : LOCAL_EMBEDDING_MODEL;
   const qVec = model === embedder.model ? await embedder.embedQuery(query) : localEmbed(query);
-  const t = THRESHOLDS[model] ?? THRESHOLDS[LOCAL_EMBEDDING_MODEL];
+  const t = thresholdsFor(model);
 
   const chunkStems = pool.map((c) => new Set(stems(indexTextFor(c))));
   const covs = coverages(stems(query), chunkStems);

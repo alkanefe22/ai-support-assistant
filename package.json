@@ -10,7 +10,9 @@
     "seed": "tsx scripts/seed.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "screenshots": "tsx scripts/screenshots.ts"
+    "screenshots": "tsx scripts/screenshots.ts",
+    "calibrate": "tsx scripts/calibrate.ts",
+    "live-check": "tsx scripts/live-check.ts"
   },
   "dependencies": {
     "next": "^16.3.6",

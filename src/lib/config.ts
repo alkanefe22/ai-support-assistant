@@ -31,7 +31,7 @@ export function getConfig() {
   return {
     provider: resolveProvider(),
     embeddingProvider: resolveEmbeddingProvider(),
-    geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+    geminiModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
     claudeModel: process.env.CLAUDE_MODEL || "claude-haiku-4-5",
     rateLimitPerMinute: int("RATE_LIMIT_PER_MINUTE", 8),
     dailyRequestLimit: int("DAILY_REQUEST_LIMIT", 300),
