@@ -9,15 +9,28 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const QUESTIONS: { lang: "tr" | "en"; q: string; want: "answer" | "handoff" }[] = [
+type Outcome = "answer" | "chat" | "handoff";
+
+/**
+ * want: what a correct assistant does.
+ *   answer  = a knowledge-base answer WITH a source
+ *   chat    = a friendly conversational reply (no source, no lead form)
+ *   handoff = "I don't know" + lead form
+ * semantic: only answerable with a semantic embedding (Gemini / Ollama). With the local word-matching
+ *   search the honest expectation is a hand-off, never a brush-off chat reply.
+ */
+const QUESTIONS: { lang: "tr" | "en"; q: string; want: Outcome; semantic?: boolean }[] = [
   { lang: "tr", q: "Diş beyazlatma ne kadar?", want: "answer" },
-  { lang: "tr", q: "Ağzım kötü kokuyor, ne yapabilirim?", want: "answer" },
-  { lang: "en", q: "I have bad breath, can you help?", want: "answer" },
-  { lang: "tr", q: "Diş teli takıyor musunuz?", want: "answer" },
+  { lang: "tr", q: "Ağzım kötü kokuyor, ne yapabilirim?", want: "answer", semantic: true },
+  { lang: "en", q: "I have bad breath, can you help?", want: "answer", semantic: true },
+  { lang: "tr", q: "Ağzım kötü kokuyor", want: "answer", semantic: true }, // a complaint, no question words
+  { lang: "tr", q: "Diş teli takıyor musunuz?", want: "answer", semantic: true },
   { lang: "tr", q: "Kanal tedavisi ne kadar tutar?", want: "handoff" },
   { lang: "tr", q: "Yirmilik diş çekimi yapıyor musunuz?", want: "handoff" },
   { lang: "en", q: "How much is a root canal?", want: "handoff" },
   { lang: "en", q: "Do you offer veneers?", want: "handoff" },
+  { lang: "tr", q: "bugün keyfim yerinde be", want: "chat" },
+  { lang: "tr", q: "naber kanka nasıl gidiyor", want: "chat" },
 ];
 
 function loadEnvLocal() {
@@ -53,12 +66,15 @@ async function main() {
     if (i > 0) await new Promise((r) => setTimeout(r, gapMs));
     const res = await handleChat({ assistantId: "gulumse-dis", message: t.q, lang: t.lang }, { store });
     const reason = res.answered ? "" : (await store.listUnanswered("gulumse-dis"))[0]?.reason;
-    // a provider error proves nothing about the model's behaviour, so it never counts as a pass
-    const got = res.answered ? "answer" : reason === "error" ? "error" : "handoff";
+    // an "answer" must cite the knowledge base; a sourceless reply is a chat reply.
+    // A provider error proves nothing about the model's behaviour, so it never counts as a pass.
+    const got = res.answered ? (res.sources.length > 0 ? "answer" : "chat") : reason === "error" ? "error" : "handoff";
+    const want: Outcome = t.semantic && embedder.model === "local-hash-v1" ? "handoff" : t.want;
     if (got === "error") errors++;
-    if (got === t.want) ok++;
-    const mark = got === t.want ? "✓" : got === "error" ? "!" : "✗";
-    console.log(`${mark} [${t.want}] ${t.q}\n    → ${got}${reason ? ` (${reason})` : ""}: ${res.answer}${res.sources[0] ? `\n    source: ${res.sources[0].heading}` : ""}`);
+    if (got === want) ok++;
+    const mark = got === want ? "✓" : got === "error" ? "!" : "✗";
+    const note = want !== t.want ? " (yerel arama eşanlamlıyı bulamaz: dürüst sonuç yönlendirme)" : "";
+    console.log(`${mark} [${want}]${note} ${t.q}\n    → ${got}${reason ? ` (${reason})` : ""}: ${res.answer}${res.sources[0] ? `\n    source: ${res.sources[0].heading}` : ""}`);
   }
   console.log(`\n${ok}/${QUESTIONS.length} as expected, ${errors} provider errors`);
 }

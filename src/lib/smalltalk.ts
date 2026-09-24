@@ -14,7 +14,7 @@ const VOCAB: Record<Exclude<SmallTalkKind, "unclear">, string[]> = {
     "merhaba", "merhabalar", "mrb", "mrhb", "mrba", "meraba", "slm", "slmlar", "selam", "selamlar", "sa",
     "selamunaleykum", "aleykumselam", "hey", "hi", "hello", "hola", "gunaydin", "tunaydin", "naber", "nbr",
     "nasilsin", "nasilsiniz", "napiyorsun", "morning", "afternoon", "evening", "howdy", "yo", "gunler",
-    "aksamlar", "kolay", "gelsin",
+    "aksamlar", "kolay", "gelsin", "nasilgidiyor", "iyimisin", "iyimisiniz",
   ],
   thanks: [
     "tesekkurler", "tesekkur", "tesekkurederim", "tsk", "tskler", "tsklr", "tsm", "sagol", "sagolun",
@@ -80,8 +80,21 @@ function kindOf(token: string): Exclude<SmallTalkKind, "unclear"> | "filler" | n
  * Returns the kind of conversational message, or null for anything that should go
  * through knowledge-base search ("merhaba, implant fiyatı ne?" is a question → null).
  */
+// Multi-word social phrases whose words would otherwise look like a question ("nasıl", "mi").
+const PHRASES: [RegExp, string][] = [
+  [/\bnasil gidiyo(r)?\b/g, "nasilgidiyor"],
+  [/\bne haber\b/g, "naber"],
+  [/\biyi misin(iz)?\b/g, "iyimisin"],
+  [/\bhow are (you|u)\b/g, "howdy"],
+  [/\bhow is it going\b/g, "howdy"],
+];
+
+function socialPhrases(normalized: string): string {
+  return PHRASES.reduce((s, [re, to]) => s.replace(re, to), normalized);
+}
+
 export function classifySmallTalk(message: string): SmallTalkKind | null {
-  const tokens = normalize(message)
+  const tokens = socialPhrases(normalize(message))
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
   if (tokens.length === 0) return "unclear"; // only punctuation / emoji
@@ -104,6 +117,30 @@ export function classifySmallTalk(message: string): SmallTalkKind | null {
   // a single very short token that is not a known word ("x", "a1")
   if (tokens.length === 1 && tokens[0].length <= 2 && !/^\d+$/.test(tokens[0])) return "unclear";
   return null;
+}
+
+// Question words / particles and help requests (normalize() form). Checked per whole word.
+const QUESTION_WORDS = new Set([
+  // Turkish interrogatives and the question particle (written apart: "var mı", "yapıyor musunuz")
+  "ne", "neden", "niye", "nicin", "nasil", "nerede", "nerde", "nereye", "nereden", "kac", "kaca", "hangi", "kim",
+  "kime", "mi", "mu", "misin", "musun", "misiniz", "musunuz", "miyim", "muyum", "midir", "mudur", "miydi", "muydu",
+  // needs and requests
+  "istiyorum", "isterim", "lazim", "gerek", "gerekiyor", "yardim", "bilgi", "ogrenmek", "sorun", "problem",
+  // English
+  "what", "how", "where", "when", "why", "which", "who", "can", "could", "do", "does", "did", "is", "are", "will",
+  "would", "should", "need", "want", "help", "have", "has", "problem", "issue",
+]);
+
+/**
+ * Deterministic guard for the live-mode chat fallback: anything that looks like a question
+ * or a request for help must get the normal hand-off (a human follows up), never a
+ * conversational brush-off from a model that misread it as small talk.
+ */
+export function looksLikeQuestion(message: string): boolean {
+  if (message.includes("?")) return true;
+  return normalize(message)
+    .split(/[^a-z0-9]+/)
+    .some((t) => QUESTION_WORDS.has(t));
 }
 
 export function smallTalkReply(kind: SmallTalkKind, lang: Lang, businessName: string): string {

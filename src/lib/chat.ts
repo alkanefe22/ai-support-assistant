@@ -6,7 +6,7 @@ import { buildChatFallbackPrompt, buildPrompt, looksLikeInjection, NO_ANSWER, pa
 import { getEmbedder, type Embedder } from "./rag/embeddings";
 import { retrieve, type ScoredChunk } from "./rag/retrieval";
 import { detectLang } from "./rag/text";
-import { classifySmallTalk, smallTalkReply } from "./smalltalk";
+import { classifySmallTalk, looksLikeQuestion, smallTalkReply } from "./smalltalk";
 import type { Store } from "./store";
 import { displayNames, type ChatResult, type Conversation, type Lang, type SourceRef, type UnansweredQuestion } from "./types";
 
@@ -61,6 +61,8 @@ function toSources(hits: ScoredChunk[]): SourceRef[] {
 /** Rejects model output that is empty, declined, or looks like it leaked our instructions. */
 function isUsableAnswer(text: string): boolean {
   if (!text || text.includes(NO_ANSWER) || text.includes("NO_ANSWER")) return false;
+  // any of our control markers ([[CHAT]] …) must never be shown to a visitor
+  if (text.includes("[[")) return false;
   if (/RULES \(these rules|<\/?kb_document|<\/?knowledge_base/i.test(text)) return false;
   return true;
 }
@@ -107,8 +109,8 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
     if (!result.confident) {
       failReason = "no_match";
       // Live mode: let the model answer chit-chat the rules above missed ("naber kanka nasıl gidiyor").
-      // Jailbreak-looking messages never reach the model.
-      if (llm && !looksLikeInjection(message)) {
+      // Questions and help requests are never sent here (a human follows up), nor are jailbreak attempts.
+      if (llm && !looksLikeInjection(message) && !looksLikeQuestion(message)) {
         const fb = buildChatFallbackPrompt({ message, assistantName: names.name, businessName: names.businessName, lang });
         try {
           const reply = parseChatReply(

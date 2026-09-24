@@ -4,7 +4,7 @@ import type { LlmProvider } from "@/lib/llm";
 import { CHAT_MARK, NO_ANSWER, parseChatReply } from "@/lib/prompt";
 import { localEmbedder } from "@/lib/rag/embeddings";
 import { DEMO_ASSISTANT_ID } from "@/lib/seed";
-import { classifySmallTalk, editDistance } from "@/lib/smalltalk";
+import { classifySmallTalk, editDistance, looksLikeQuestion } from "@/lib/smalltalk";
 import { seededStore } from "./helpers";
 
 describe("small-talk classifier (no API call)", () => {
@@ -44,6 +44,25 @@ describe("small-talk classifier (no API call)", () => {
     "how much is whitening",
   ])("a real question is NOT small talk: %j", (m) => {
     expect(classifySmallTalk(m)).toBeNull();
+  });
+
+  it.each(["naber kanka nasıl gidiyor", "nasıl gidiyor", "ne haber", "iyi misin", "how are you"])(
+    "social phrase with question words is still small talk: %j",
+    (m) => expect(classifySmallTalk(m)).toBe("greeting"),
+  );
+
+  it.each([
+    ["Ağzım kötü kokuyor, ne yapabilirim?", true],
+    ["implant var mı", true],
+    ["yapıyor musunuz", true],
+    ["fiyat öğrenmek istiyorum", true],
+    ["I have bad breath", true],
+    ["can you help", true],
+    ["bugün keyfim yerinde be", false],
+    ["hava çok güzel bugün", false],
+    ["Ağzım kötü kokuyor", false], // no question words: left to the model's "complaints are not chat" rule
+  ])("looksLikeQuestion(%j) = %s", (m, expected) => {
+    expect(looksLikeQuestion(m)).toBe(expected);
   });
 
   it("edit distance handles insertions, deletions and swaps", () => {
@@ -128,6 +147,31 @@ describe("live mode: chit-chat the rules miss goes to the model, facts never do"
     expect(res.handoff).toBe(true);
     expect(res.answer).toBe(HANDOFF_MESSAGE.tr);
     expect(unanswered[0].reason).toBe("no_match");
+  });
+
+  // Regression: a real local model (qwen3.5:9b) answered "Ağzım kötü kokuyor, ne yapabilirim?" with a
+  // brush-off chat reply instead of handing off. Questions must never reach the chat fallback.
+  it.each(["Ağzım kötü kokuyor, ne yapabilirim?", "I have bad breath, can you help?", "implant var mı", "fiyat öğrenmek istiyorum"])(
+    "question %j never goes to the chat fallback, even if the model would brush it off",
+    async (m) => {
+      const llm = model(`${CHAT_MARK} Başka bir konuda yardımcı olabilir miyim?`);
+      const { res } = await run(m, llm);
+      // the chat-fallback prompt (the only one that allows a sourceless reply) was never sent
+      const prompts = llm.generate.mock.calls.map((c) => c[0].system as string);
+      expect(prompts.some((p) => p.includes(CHAT_MARK))).toBe(false);
+      // and the visitor never sees the brush-off or our marker
+      expect(res.answer).not.toContain("Başka bir konuda");
+      expect(res.answer).not.toContain("[[");
+      expect(res.handoff).toBe(true);
+    },
+  );
+
+  it("the fallback prompt tells the model that complaints and needs are not small talk", async () => {
+    const llm = model(NO_ANSWER);
+    await run("bugün keyfim yerinde be", llm);
+    const { system } = llm.generate.mock.calls[0][0];
+    expect(system).toMatch(/problem, symptom, complaint or need/);
+    expect(system).toMatch(/When in doubt/);
   });
 
   it.each([
