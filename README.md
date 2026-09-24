@@ -17,7 +17,7 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 225 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 234 otomatik test + tarayıcıda elle doğrulandı |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
@@ -269,6 +269,7 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 - **Parçalama:** Markdown başlıkları ve SSS kalıpları (`## Soru?`, `S: … C: …`, `?` ile biten kısa satır) bölüm sınırı kabul edilir; bölümler ~700 karaktere paketlenir, bölüm bölündüğünde son cümle bir sonraki parçaya taşınır.
 - **Türkçe:** Türkçe küçük harf kuralları + aksan katlama (`diş` = `dis`), ilk-5-karakter kök alma, ek varyasyonları için önek eşleşmesi (`gün`/`günleri`, `kapanıyor`/`kapalı`) ve küçük bir eşanlamlı listesi (`fiyat/ücret/price`, `çocuk/kids` …).
 - **Skor:** `local` modda hash'lenmiş kök + karakter trigram vektörlerinin kosinüsü ile IDF ağırlıklı sorgu terimi kapsamasının ortalaması. Bilgi tabanında hiç geçmeyen terimler en yüksek ağırlığı aldığı için "Göz muayenesi yapıyor musunuz?" gibi tek kelimesi tutan konu dışı sorular eşiği geçemez.
+- **Hibrit arama:** Anlamsal model (Gemini / Ollama) eşiği geçemezse, yazım hatalarına dayanıklı kelime eşleştirmesi kendi eşikleriyle ikinci şans olarak denenir ("cocuklara bakiyonuz mu" → *Çocuklara hizmet veriyor musunuz?*). Alakasız sorular yine elenir ve model cevabında kaynak göstermek zorundadır. Çok bozuk yazılmış kelimeler ("diş tali") yakalanamaz; bu durumda asistan uydurmaz, yetkiliye yönlendirir.
 - **Eşikler** (`src/lib/rag/retrieval.ts`) embedding modeline göre ayrıdır: `local` için `tests/retrieval.test.ts`'deki 22 alan içi + 11 alan dışı soruyla, `gemini-embedding-2` için yukarıdaki kalibrasyonla ayarlandı.
 
 ## Prompt injection savunması
@@ -287,13 +288,14 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 
 ## Testler
 
-`npm test` — 225 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 234 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
 - `injection.test.ts` — tespit, kaçışlama, veri bloğu yapısı, zehirli belge, jailbreak, sızıntı filtresi.
 - `readonly.test.ts` — erişim matrisi; public demoda gerçek server action'ların (Next.js `cookies`/`redirect` taklit edilerek) hiçbir veriyi değiştirmediği, CSV'nin `403` döndüğü, sahibin giriş yapıp tam yetki aldığı; e-posta/telefon/isim maskeleme.
 - `parse.test.ts` — test içinde üretilen gerçek bir PDF'ten metin çıkarıp cevaplanabilir hale getirme.
+- `hybrid.test.ts` — anlamsal arama ıskaladığında kelime eşleştirmesinin yazım hatalı soruları kurtarması, alakasız soruların yine elenmesi.
 - `answer.test.ts` — zorunlu kaynak etiketi (gösterilen kaynak = kullanılan parça, kaynaksız cevabın reddi, bilgi tabanının etiket taklit edememesi), düz yazıyla "bilgi yok" cevaplarının yakalanması (gerçek model çıktılarıyla) ve normal cevapların yanlışlıkla reddedilmemesi.
 - `smalltalk.test.ts` — selamlaşma/teşekkür/onay ve yazım hataları, gerçek soruların selam sanılmaması, canlı modda sohbet cevabının kuralları (uydurma rakam/e-posta/link reddi).
 - `ollama.test.ts` — Ollama sohbet ve embedding istek biçimi, `<think>` bloğunun gizlenmesi, eşiklerin env ile ayarı, uçtan uca akış (fetch taklit edilerek).

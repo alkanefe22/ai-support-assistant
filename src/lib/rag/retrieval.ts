@@ -14,6 +14,8 @@ export interface RetrievalResult {
   /** true when the best hit clears the confidence threshold */
   confident: boolean;
   topScore: number;
+  /** which search produced the hits: semantic embedding, or the typo-tolerant word matcher */
+  via?: "semantic" | "lexical";
 }
 
 type Thresholds = { minScore: number; minCoverage: number; weightCos: number };
@@ -107,14 +109,45 @@ export async function retrieve(
   const covs = coverages(stems(query), chunkStems);
 
   const scored = pool.map((chunk, i) => {
-    const vec = model === chunk.embeddingModel ? chunk.embedding : localEmbed(indexTextFor(chunk));
+    const vec = model === chunk.embeddingModel ? chunk.embedding : localVector(chunk);
     const cos = Math.max(0, cosine(qVec, vec));
     const cov = covs[i];
     return { chunk, cosine: cos, coverage: cov, score: t.weightCos * cos + (1 - t.weightCos) * cov };
   });
-  scored.sort((a, b) => b.score - a.score);
-  const hits = scored.slice(0, topK);
+  const primary = ranked(scored, topK, t);
+  if (primary.confident || model === LOCAL_EMBEDDING_MODEL) return { ...primary, via: model === LOCAL_EMBEDDING_MODEL ? "lexical" : "semantic" };
+
+  // Second chance for semantic models: the typo-tolerant word matcher (the tuned demo-mode
+  // search). A semantic model can miss "cocuklara bakiyonuz mu" while stems + trigrams still
+  // match "Çocuklara hizmet veriyor musunuz?". Its own thresholds still reject off-topic text,
+  // and the model must cite a chunk afterwards, so this cannot turn a guess into an answer.
+  const lt = THRESHOLDS[LOCAL_EMBEDDING_MODEL];
+  const lq = localEmbed(query);
+  const lexical = pool.map((chunk, i) => {
+    const cos = Math.max(0, cosine(lq, localVector(chunk)));
+    return { chunk, cosine: cos, coverage: covs[i], score: lt.weightCos * cos + (1 - lt.weightCos) * covs[i] };
+  });
+  const second = ranked(lexical, topK, lt);
+  return second.confident ? { ...second, via: "lexical" } : { ...primary, via: "semantic" };
+}
+
+function ranked(scored: ScoredChunk[], topK: number, t: Thresholds) {
+  const hits = [...scored].sort((a, b) => b.score - a.score).slice(0, topK);
   const best = hits[0];
   const confident = !!best && best.score >= t.minScore && best.coverage >= t.minCoverage;
   return { hits, confident, topScore: best?.score ?? 0 };
+}
+
+// Local vectors are cheap but not free; cache them per chunk (keyed by id + text so edits invalidate).
+const localCache = new Map<string, number[]>();
+function localVector(chunk: Chunk): number[] {
+  if (chunk.embeddingModel === LOCAL_EMBEDDING_MODEL) return chunk.embedding;
+  const key = `${chunk.id}:${chunk.heading.length}:${chunk.text.length}`;
+  let v = localCache.get(key);
+  if (!v) {
+    v = localEmbed(indexTextFor(chunk));
+    if (localCache.size > 20_000) localCache.clear();
+    localCache.set(key, v);
+  }
+  return v;
 }
