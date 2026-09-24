@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
-import { authMode, isAdmin } from "@/lib/auth";
+import { adminAccess, authMode } from "@/lib/auth";
 import { login } from "../actions";
 import { btnCls, inputCls } from "../ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  if (await isAdmin()) redirect("/admin");
+  // read-only viewers of a public demo may still log in as the owner
+  if ((await adminAccess()) === "full") redirect("/admin");
   const { error } = await searchParams;
   const mode = authMode();
 
@@ -14,7 +15,15 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="grid min-h-screen place-items-center px-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-6 ring-1 ring-slate-200">
         <h1 className="text-xl font-bold">Yönetim paneli</h1>
-        {mode === "locked" ? (
+        {mode === "open-demo" ? (
+          <p className="mt-3 text-sm text-slate-600">
+            Bu demoda yönetici şifresi tanımlı değil; panel yalnızca{" "}
+            <a href="/admin" className="underline">
+              salt okunur
+            </a>{" "}
+            gezilebilir.
+          </p>
+        ) : mode === "locked" ? (
           <p className="mt-3 text-sm text-slate-600">
             Canlı sağlayıcı etkin ama <code>ADMIN_PASSWORD</code> tanımlı değil. Güvenlik için panel kilitli; ortam
             değişkenine bir şifre ekleyip sunucuyu yeniden başlatın.

@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { checkPassword, createSession, destroySession, requireAdmin } from "@/lib/auth";
+import { checkPassword, createSession, destroySession, requireAdmin, requireWrite } from "@/lib/auth";
 import { ingestDocument, reindexAssistant } from "@/lib/rag/ingest";
 import { extractText, MAX_UPLOAD_BYTES, sourceTypeFor } from "@/lib/rag/parse";
 import { getStore } from "@/lib/store";
@@ -41,7 +41,7 @@ export async function selectAssistant(fd: FormData) {
 }
 
 export async function uploadDocument(fd: FormData) {
-  await requireAdmin();
+  await requireWrite("/admin/knowledge");
   const { assistant } = await currentAssistant();
   const file = fd.get("file");
   if (!(file instanceof File) || file.size === 0) back("/admin/knowledge", { error: "Dosya seçilmedi." });
@@ -67,7 +67,7 @@ export async function uploadDocument(fd: FormData) {
 }
 
 export async function addFaqText(fd: FormData) {
-  await requireAdmin();
+  await requireWrite("/admin/knowledge");
   const { assistant } = await currentAssistant();
   const text = str(fd, "text", 100_000);
   if (text.length < 20) back("/admin/knowledge", { error: "Metin çok kısa." });
@@ -88,7 +88,7 @@ export async function addFaqText(fd: FormData) {
 }
 
 export async function deleteDocument(fd: FormData) {
-  await requireAdmin();
+  await requireWrite("/admin/knowledge");
   const { assistant } = await currentAssistant();
   await (await getStore()).deleteDocument(assistant.id, str(fd, "id", 64));
   revalidatePath("/admin", "layout");
@@ -96,7 +96,7 @@ export async function deleteDocument(fd: FormData) {
 }
 
 export async function reindex() {
-  await requireAdmin();
+  await requireWrite("/admin/knowledge");
   const { assistant } = await currentAssistant();
   let n = 0;
   try {
@@ -124,7 +124,7 @@ function parseOrigins(raw: string): string[] {
 }
 
 export async function saveSettings(fd: FormData) {
-  await requireAdmin();
+  await requireWrite("/admin/settings");
   const store = await getStore();
   const { assistant } = await currentAssistant();
   const color = str(fd, "color", 7);
@@ -144,7 +144,7 @@ export async function saveSettings(fd: FormData) {
 }
 
 export async function createAssistant(fd: FormData) {
-  await requireAdmin();
+  await requireWrite("/admin/settings");
   const businessName = str(fd, "businessName", 80);
   if (!businessName) back("/admin/settings", { error: "İşletme adı gerekli." });
   const slug =
@@ -174,7 +174,7 @@ export async function createAssistant(fd: FormData) {
 }
 
 export async function setUnansweredResolved(fd: FormData) {
-  await requireAdmin();
+  await requireWrite("/admin/unanswered");
   const { assistant } = await currentAssistant();
   const ids = str(fd, "ids", 10_000).split(",").filter(Boolean);
   const store = await getStore();
@@ -183,7 +183,7 @@ export async function setUnansweredResolved(fd: FormData) {
 }
 
 export async function deleteLead(fd: FormData) {
-  await requireAdmin();
+  await requireWrite("/admin/leads");
   const { assistant } = await currentAssistant();
   await (await getStore()).deleteLead(assistant.id, str(fd, "id", 64));
   revalidatePath("/admin/leads");

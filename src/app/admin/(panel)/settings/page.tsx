@@ -1,6 +1,7 @@
+import { adminAccess } from "@/lib/auth";
 import { createAssistant, saveSettings } from "../../actions";
 import { currentAssistant } from "../../current";
-import { btnCls, Card, Flash, inputCls, PageTitle } from "../../ui";
+import { btnCls, Card, Flash, inputCls, PageTitle, ReadOnlyHint } from "../../ui";
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -15,6 +16,7 @@ function Field({ label, children, hint }: { label: string; children: React.React
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { ok, error } = await searchParams;
   const { assistant: a } = await currentAssistant();
+  const ro = (await adminAccess()) === "readonly";
 
   return (
     <>
@@ -22,7 +24,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <Flash ok={ok} error={error} />
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
         <Card>
-          <form action={saveSettings} className="space-y-4">
+          <ReadOnlyHint show={ro} />
+          <form action={saveSettings}>
+            <fieldset disabled={ro} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Asistan adı">
                 <input name="name" defaultValue={a.name} maxLength={60} className={inputCls} required />
@@ -47,6 +51,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <textarea name="allowedOrigins" defaultValue={a.allowedOrigins.join("\n")} rows={3} className={inputCls} />
             </Field>
             <button className={btnCls}>Kaydet</button>
+            </fieldset>
           </form>
         </Card>
 
@@ -66,9 +71,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <Card>
             <h2 className="font-semibold">Yeni asistan</h2>
             <p className="mt-1 text-xs text-slate-500">Başka bir işletme için ayrı bilgi tabanı ve widget.</p>
-            <form action={createAssistant} className="mt-3 space-y-3">
+            <ReadOnlyHint show={ro} />
+            <form action={createAssistant} className="mt-3">
+              <fieldset disabled={ro} className="space-y-3">
               <input name="businessName" placeholder="İşletme adı" maxLength={80} className={inputCls} required />
               <button className={btnCls}>Oluştur</button>
+              </fieldset>
             </form>
           </Card>
         </div>

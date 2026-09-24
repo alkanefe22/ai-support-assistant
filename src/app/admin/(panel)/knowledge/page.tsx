@@ -1,8 +1,9 @@
+import { adminAccess } from "@/lib/auth";
 import { getConfig } from "@/lib/config";
 import { getStore } from "@/lib/store";
 import { addFaqText, deleteDocument, reindex, uploadDocument } from "../../actions";
 import { currentAssistant } from "../../current";
-import { btnCls, btnGhostCls, Card, Empty, Flash, fmtDate, inputCls, PageTitle } from "../../ui";
+import { btnCls, btnGhostCls, Card, Empty, Flash, fmtDate, inputCls, PageTitle, ReadOnlyHint } from "../../ui";
 
 function LangSelect() {
   return (
@@ -16,6 +17,7 @@ function LangSelect() {
 export default async function KnowledgePage({ searchParams }: { searchParams: Promise<{ ok?: string; error?: string }> }) {
   const { ok, error } = await searchParams;
   const { assistant } = await currentAssistant();
+  const ro = (await adminAccess()) === "readonly";
   const store = await getStore();
   const [docs, chunks] = await Promise.all([store.listDocuments(assistant.id), store.getChunks(assistant.id)]);
   const flaggedChunks = chunks.filter((c) => c.suspicious);
@@ -33,11 +35,14 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
         <Card>
           <h2 className="font-semibold">Dosya yükle</h2>
           <p className="mt-1 text-xs text-slate-500">PDF, TXT veya Markdown · en fazla 4 MB</p>
-          <form action={uploadDocument} className="mt-3 space-y-3">
+          <ReadOnlyHint show={ro} />
+          <form action={uploadDocument} className="mt-3">
+            <fieldset disabled={ro} className="space-y-3">
             <input type="file" name="file" accept=".pdf,.txt,.md,.markdown" required className="block w-full text-sm" />
             <input name="title" placeholder="Başlık (isteğe bağlı)" className={inputCls} maxLength={120} />
             <LangSelect />
             <button className={btnCls}>Yükle ve indeksle</button>
+            </fieldset>
           </form>
         </Card>
         <Card>
@@ -45,11 +50,14 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
           <p className="mt-1 text-xs text-slate-500">
             &quot;## Soru?&quot; başlıkları, &quot;S: … C: …&quot; veya soru satırı + cevap paragrafı biçimleri tanınır.
           </p>
-          <form action={addFaqText} className="mt-3 space-y-3">
+          <ReadOnlyHint show={ro} />
+          <form action={addFaqText} className="mt-3">
+            <fieldset disabled={ro} className="space-y-3">
             <input name="title" placeholder="Başlık" className={inputCls} maxLength={120} />
             <textarea name="text" required rows={5} className={inputCls} placeholder={"S: Kargo ücretli mi?\nC: 500 TL üzeri siparişlerde ücretsiz."} />
             <LangSelect />
             <button className={btnCls}>Ekle</button>
+            </fieldset>
           </form>
         </Card>
       </div>
@@ -61,7 +69,9 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
             <span className="text-xs text-slate-500">
               İndeks: {models.join(", ") || "—"} · aktif: {getConfig().embeddingProvider}
             </span>
-            <button className={btnGhostCls}>Yeniden indeksle</button>
+            <button className={btnGhostCls} disabled={ro}>
+              Yeniden indeksle
+            </button>
           </form>
         </div>
         {docs.length === 0 ? (
@@ -99,7 +109,7 @@ export default async function KnowledgePage({ searchParams }: { searchParams: Pr
                     <td className="py-2 text-right">
                       <form action={deleteDocument}>
                         <input type="hidden" name="id" value={d.id} />
-                        <button className="text-sm text-red-700 hover:underline" aria-label={`${d.title} belgesini sil`}>
+                        <button disabled={ro} className="text-sm text-red-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline" aria-label={`${d.title} belgesini sil`}>
                           Sil
                         </button>
                       </form>

@@ -1,9 +1,13 @@
+import { adminAccess } from "@/lib/auth";
+import { redactPII } from "@/lib/privacy";
 import { getStore } from "@/lib/store";
 import { currentAssistant } from "../../current";
 import { Card, Empty, fmtDate, PageTitle } from "../../ui";
 
 export default async function ConversationsPage() {
   const { assistant } = await currentAssistant();
+  const ro = (await adminAccess()) === "readonly";
+  const show = (t: string) => (ro ? redactPII(t) : t);
   const conversations = await (await getStore()).listConversations(assistant.id, 100);
 
   return (
@@ -20,7 +24,7 @@ export default async function ConversationsPage() {
               <Card key={c.id} className="!p-0">
                 <details>
                   <summary className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-5 py-4">
-                    <span className="min-w-0 flex-1 truncate font-medium">{first?.text ?? "—"}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium">{first ? show(first.text) : "—"}</span>
                     <span className="text-xs uppercase text-slate-500">{c.lang}</span>
                     <span className="text-xs text-slate-500">{c.messages.length} mesaj</span>
                     {misses > 0 && (
@@ -40,7 +44,7 @@ export default async function ConversationsPage() {
                                 : "bg-slate-100"
                           }`}
                         >
-                          {m.text}
+                          {show(m.text)}
                           {m.sources && m.sources.length > 0 && (
                             <div className="mt-1 text-xs text-slate-500">
                               Kaynak: {m.sources.map((s) => `${s.heading} (${s.score})`).join(" · ")}

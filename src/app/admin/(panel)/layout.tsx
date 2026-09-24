@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { authMode, requireAdmin } from "@/lib/auth";
+import { adminAccess, authMode, requireAdmin } from "@/lib/auth";
 import { getConfig } from "@/lib/config";
 import { logout, selectAssistant } from "../actions";
 import { currentAssistant } from "../current";
@@ -20,10 +20,24 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   const { assistant, all } = await currentAssistant();
   const { provider, embeddingProvider } = getConfig();
   const mode = authMode();
+  const access = await adminAccess();
 
   return (
     <div className="min-h-screen">
-      {mode === "open-demo" && (
+      {access === "readonly" ? (
+        <div role="status" className="bg-sky-100 px-4 py-2 text-center text-xs text-sky-900">
+          🔒 <b>Salt okunur demo.</b> Paneli serbestçe gezebilirsiniz; belge yükleme, silme ve ayar değiştirme kapalı.
+          Ziyaretçi iletişim bilgileri maskelenir.
+          {mode === "password" && (
+            <>
+              {" "}
+              <Link href="/admin/login" className="underline">
+                Yönetici girişi
+              </Link>
+            </>
+          )}
+        </div>
+      ) : mode === "open-demo" && (
         <div className="bg-amber-100 px-4 py-2 text-center text-xs text-amber-900">
           Demo modu: <code>ADMIN_PASSWORD</code> tanımlı olmadığı için panel şifresiz açık. Canlıya almadan önce şifre belirleyin.
         </div>
@@ -69,7 +83,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
               </Link>
             ))}
           </nav>
-          {mode === "password" && (
+          {mode === "password" && access === "full" && (
             <form action={logout} className="mt-4">
               <button className="text-sm text-slate-500 underline">Çıkış yap</button>
             </form>

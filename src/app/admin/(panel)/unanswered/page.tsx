@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { adminAccess } from "@/lib/auth";
+import { redactPII } from "@/lib/privacy";
 import { normalize } from "@/lib/rag/text";
 import { getStore } from "@/lib/store";
 import type { UnansweredQuestion } from "@/lib/types";
 import { setUnansweredResolved } from "../../actions";
 import { currentAssistant } from "../../current";
-import { btnGhostCls, Card, Empty, fmtDate, PageTitle } from "../../ui";
+import { btnGhostCls, Card, Empty, Flash, fmtDate, PageTitle, ReadOnlyHint } from "../../ui";
 
 const REASON: Record<UnansweredQuestion["reason"], string> = {
   no_match: "Bilgi tabanında yok",
@@ -29,12 +31,12 @@ function group(list: UnansweredQuestion[]): Group[] {
   return [...map.values()].sort((a, b) => b.items.length - a.items.length);
 }
 
-function Row({ g, resolved }: { g: Group; resolved: boolean }) {
+function Row({ g, resolved, ro }: { g: Group; resolved: boolean; ro: boolean }) {
   const latest = g.items[0];
   return (
     <li className="flex flex-wrap items-center gap-3 border-t border-slate-100 py-3 first:border-t-0">
       <div className="min-w-0 flex-1">
-        <div className={`font-medium ${resolved ? "text-slate-400 line-through" : ""}`}>{g.question}</div>
+        <div className={`font-medium ${resolved ? "text-slate-400 line-through" : ""}`}>{ro ? redactPII(g.question) : g.question}</div>
         <div className="text-xs text-slate-500">
           {REASON[latest.reason]} · {latest.lang.toUpperCase()} · son: {fmtDate(latest.createdAt)}
         </div>
@@ -45,14 +47,16 @@ function Row({ g, resolved }: { g: Group; resolved: boolean }) {
       <form action={setUnansweredResolved}>
         <input type="hidden" name="ids" value={g.items.map((i) => i.id).join(",")} />
         <input type="hidden" name="resolved" value={resolved ? "0" : "1"} />
-        <button className={btnGhostCls}>{resolved ? "Geri al" : "Eklendi olarak işaretle"}</button>
+        <button className={btnGhostCls} disabled={ro}>{resolved ? "Geri al" : "Eklendi olarak işaretle"}</button>
       </form>
     </li>
   );
 }
 
-export default async function UnansweredPage() {
+export default async function UnansweredPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   const { assistant } = await currentAssistant();
+  const ro = (await adminAccess()) === "readonly";
   const list = await (await getStore()).listUnanswered(assistant.id);
   const open = group(list.filter((q) => !q.resolved));
   const done = group(list.filter((q) => q.resolved));
@@ -63,13 +67,15 @@ export default async function UnansweredPage() {
         title="Cevaplanamayan sorular"
         subtitle="Ziyaretçilerin sorduğu ama bilgi tabanında cevabı olmayan sorular. En çok sorulanlar üstte."
       />
+      <Flash error={error} />
       <Card>
+        <ReadOnlyHint show={ro} />
         {open.length === 0 ? (
           <Empty>Açık soru yok. 🎉</Empty>
         ) : (
           <ul>
             {open.map((g) => (
-              <Row key={g.key} g={g} resolved={false} />
+              <Row key={g.key} g={g} resolved={false} ro={ro} />
             ))}
           </ul>
         )}
@@ -83,7 +89,7 @@ export default async function UnansweredPage() {
           <h2 className="mb-2 font-semibold text-slate-600">Çözülenler</h2>
           <ul>
             {done.map((g) => (
-              <Row key={g.key} g={g} resolved />
+              <Row key={g.key} g={g} resolved ro={ro} />
             ))}
           </ul>
         </Card>

@@ -8,6 +8,11 @@ const TTL_MS = 12 * 60 * 60 * 1000;
 
 export type AuthMode = "open-demo" | "password" | "locked";
 
+/** What the current visitor may do in the admin panel. */
+export type Access = "full" | "readonly" | "none";
+
+export const READ_ONLY_MESSAGE = "Salt okunur demo: değişiklik, silme ve yükleme kapalı.";
+
 /**
  * - password: ADMIN_PASSWORD is set → login required.
  * - open-demo: no password and demo provider → panel open (local portfolio demo).
@@ -17,6 +22,24 @@ export function authMode(): AuthMode {
   const cfg = getConfig();
   if (cfg.adminPassword) return "password";
   return cfg.provider === "demo" ? "open-demo" : "locked";
+}
+
+/** PUBLIC_DEMO=true lets anyone browse the panel read-only (for a public portfolio deployment). */
+export function isPublicDemo(): boolean {
+  return process.env.PUBLIC_DEMO === "true";
+}
+
+/**
+ * Pure access decision (unit-tested):
+ * - a logged-in owner always gets full access;
+ * - on a public demo everyone else is a read-only viewer, even when no password is set;
+ * - otherwise the local open demo is fully writable and everything else is closed.
+ */
+export function resolveAccess(o: { mode: AuthMode; publicDemo: boolean; sessionValid: boolean }): Access {
+  if (o.mode === "password" && o.sessionValid) return "full";
+  if (o.publicDemo) return "readonly";
+  if (o.mode === "open-demo") return "full";
+  return "none";
 }
 
 function sign(value: string): string {
@@ -49,17 +72,39 @@ export async function destroySession() {
   (await cookies()).delete(COOKIE);
 }
 
-export async function isAdmin(): Promise<boolean> {
-  const mode = authMode();
-  if (mode === "open-demo") return true;
-  if (mode === "locked") return false;
+async function sessionValid(): Promise<boolean> {
   const raw = (await cookies()).get(COOKIE)?.value ?? "";
   const [exp, sig] = raw.split(".");
   if (!exp || !sig || !safeEqual(sig, sign(exp))) return false;
   return Number(exp) > Date.now();
 }
 
-/** Guard for admin pages and server actions. */
+export async function adminAccess(): Promise<Access> {
+  const mode = authMode();
+  return resolveAccess({
+    mode,
+    publicDemo: isPublicDemo(),
+    sessionValid: mode === "password" && (await sessionValid()),
+  });
+}
+
+/** Viewing is allowed (full or read-only). */
+export async function isAdmin(): Promise<boolean> {
+  return (await adminAccess()) !== "none";
+}
+
+/** Guard for admin pages: any access level may view. */
 export async function requireAdmin() {
   if (!(await isAdmin())) redirect("/admin/login");
+}
+
+/**
+ * Guard for every server action that changes data. Read-only viewers are sent back
+ * to `backTo` with an explanation; the check runs on the server, so a disabled button
+ * in the UI is only a hint, not the protection.
+ */
+export async function requireWrite(backTo: string) {
+  const access = await adminAccess();
+  if (access === "none") redirect("/admin/login");
+  if (access === "readonly") redirect(`${backTo}?${new URLSearchParams({ error: READ_ONLY_MESSAGE })}`);
 }

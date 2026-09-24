@@ -1,4 +1,4 @@
-import { isAdmin } from "@/lib/auth";
+import { adminAccess } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { currentAssistant } from "../../../current";
 
@@ -9,7 +9,10 @@ function cell(v: string): string {
 }
 
 export async function GET() {
-  if (!(await isAdmin())) return new Response("Unauthorized", { status: 401 });
+  const access = await adminAccess();
+  if (access === "none") return new Response("Unauthorized", { status: 401 });
+  // full contact details must never leave a public read-only demo
+  if (access === "readonly") return new Response("Read-only demo: export disabled", { status: 403 });
   const { assistant } = await currentAssistant();
   const leads = await (await getStore()).listLeads(assistant.id);
   const rows = [
