@@ -69,9 +69,11 @@ kurulmadı, hesap ayarı değiştirilmedi. Tüm iş yerel git geçmişinde (7 co
 
 ## Senin yapman gerekenler
 
-1. **Dosyaları kalıcı bir klasöre taşı.** Proje şu an bu oturum için açılmış geçici bir çalışma klasöründe; oturum
-   silinirse klasör de silinir. İstersen bana bir klasör söyle, oturumu oraya taşıyayım.
-2. Kodu gözden geçir, uygun görürsen GitHub'a kendin push et (ben push etmedim).
+> Güncel yapılacaklar listesi artık [NEXT_STEPS.md](NEXT_STEPS.md)'de. Aşağısı gece çalışmasının sonundaki haliyle bırakıldı;
+> 1. ve 2. maddeler tamamlandı (proje kalıcı klasöre taşındı, GitHub'a push edildi).
+
+1. ~~Dosyaları kalıcı bir klasöre taşı.~~ Tamamlandı.
+2. ~~Kodu gözden geçir, GitHub'a push et.~~ Tamamlandı: [alkanefe22/ai-support-assistant](https://github.com/alkanefe22/ai-support-assistant).
 3. Canlı modu denemek için `.env.local` oluştur (`.env.example`'dan):
    `AI_PROVIDER=gemini` + `GEMINI_API_KEY` (veya `claude` + `ANTHROPIC_API_KEY`), güçlü bir `ADMIN_PASSWORD` ve
    `SESSION_SECRET`. İlk denemede düşük limitlerle (`DAILY_REQUEST_LIMIT=20`) birkaç soru sor; model adlarının güncel
@@ -93,3 +95,12 @@ npm run dev
 ```bash
 npm test
 ```
+
+## Kapanış (24.09.2026)
+
+- Public salt okunur demo modu eklendi (`PUBLIC_DEMO=true`): veri değiştiren tüm server action'lar sunucu tarafında
+  reddediliyor, lead CSV'si `403`, ziyaretçi iletişim bilgileri maskeleniyor. 23 yeni test; ayrıca tarayıcıda form
+  kilidi JavaScript ile açılıp gönderildi, sunucu reddetti.
+- ESLint (flat config, `eslint-config-next` core-web-vitals + typescript) eklendi.
+- Son durum: 100/100 test, typecheck, lint ve production build temiz.
+- Devam etmek için: [NEXT_STEPS.md](NEXT_STEPS.md).

@@ -13,6 +13,12 @@ const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const OUT = path.resolve("docs/screenshots");
 const CHANNEL = (process.env.BROWSER_CHANNEL ?? "chrome") as "chrome" | "msedge";
 
+function readEnvLocal(key: string): string | undefined {
+  if (!fs.existsSync(".env.local")) return undefined;
+  const line = fs.readFileSync(".env.local", "utf8").split(/\r?\n/).find((l) => l.startsWith(`${key}=`));
+  return line?.slice(key.length + 1).trim() || undefined;
+}
+
 async function ask(page: Page, question: string) {
   const input = page.locator("[data-ai-support-assistant] textarea");
   await input.fill(question);
@@ -65,7 +71,26 @@ async function main() {
   await ask(mobile, "Can I pay in installments?");
   await shot(mobile, "05-mobile-widget-en");
 
-  // 5. Admin panel
+  // 5. Public read-only panel, as an anonymous visitor sees it (server started with PUBLIC_DEMO=true)
+  const visitor = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await visitor.goto(`${BASE}/admin/knowledge`);
+  if (await visitor.getByText("Salt okunur demo.").count()) {
+    await shot(visitor, "12-readonly-knowledge");
+    await visitor.goto(`${BASE}/admin/leads`);
+    await shot(visitor, "13-readonly-leads-masked");
+  } else {
+    console.log("Server is not in PUBLIC_DEMO mode, skipping read-only screenshots");
+  }
+  await visitor.close();
+
+  // 6. Full admin panel: log in as the owner when a password is configured
+  const password = process.env.ADMIN_PASSWORD ?? readEnvLocal("ADMIN_PASSWORD");
+  if (password) {
+    await desktop.goto(`${BASE}/admin/login`);
+    await desktop.locator("#password").fill(password);
+    await desktop.locator("#password").press("Enter");
+    await desktop.waitForURL(`${BASE}/admin`);
+  }
   for (const [route, name] of [
     ["/admin", "06-admin-overview"],
     ["/admin/knowledge", "07-admin-knowledge"],
