@@ -2,7 +2,15 @@ import { randomUUID } from "node:crypto";
 import { getConfig } from "./config";
 import { getLlm, type LlmProvider } from "./llm";
 import { demoAnswer } from "./llm/demo";
-import { buildChatFallbackPrompt, buildPrompt, looksLikeInjection, NO_ANSWER, parseChatReply } from "./prompt";
+import {
+  buildChatFallbackPrompt,
+  buildPrompt,
+  looksLikeDecline,
+  looksLikeInjection,
+  NO_ANSWER,
+  parseAnswer,
+  parseChatReply,
+} from "./prompt";
 import { getEmbedder, type Embedder } from "./rag/embeddings";
 import { retrieve, type ScoredChunk } from "./rag/retrieval";
 import { detectLang } from "./rag/text";
@@ -44,11 +52,15 @@ export interface ChatDeps {
   embedder?: Embedder;
 }
 
-function toSources(hits: ScoredChunk[]): SourceRef[] {
+/**
+ * Demo mode shows the best retrieval hits; with a model, exactly the chunks it cited
+ * (the top hit is not always the one the answer came from).
+ */
+function toSources(hits: ScoredChunk[], opts: { cited?: boolean } = {}): SourceRef[] {
   const top = hits[0]?.score ?? 0;
   return hits
-    .filter((h, i) => i === 0 || h.score >= top * 0.85)
-    .slice(0, 2)
+    .filter((h, i) => opts.cited || i === 0 || h.score >= top * 0.85)
+    .slice(0, opts.cited ? 3 : 2)
     .map((h) => ({
       chunkId: h.chunk.id,
       documentTitle: h.chunk.title,
@@ -142,10 +154,12 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
           user: prompt.user,
           maxOutputTokens: cfg.maxOutputTokens,
         });
-        if (isUsableAnswer(out)) {
-          answer = out;
+        // The answer must cite the chunk(s) it used; uncited or "no information" prose is a decline.
+        const parsed = parseAnswer(out, prompt.usedChunks);
+        if (parsed && isUsableAnswer(parsed.text) && !looksLikeDecline(parsed.text)) {
+          answer = parsed.text;
           answered = true;
-          sources = toSources(prompt.usedChunks);
+          sources = toSources(parsed.cited, { cited: true });
         } else {
           failReason = "model_declined";
         }

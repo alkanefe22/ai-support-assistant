@@ -156,7 +156,7 @@ describe("end-to-end behaviour against injection", () => {
 
   it("wraps retrieved text in data blocks when calling a real provider", async () => {
     const store = await seededStore();
-    const llm = mockLlm("Ofis tipi beyazlatma 6.500 TL'dir.");
+    const llm = mockLlm("Ofis tipi beyazlatma 6.500 TL'dir. [[SOURCE:1]]");
     const res = await handleChat(
       { assistantId: DEMO_ASSISTANT_ID, message: "Diş beyazlatma fiyatı ne kadar?", lang: "tr" },
       { store, llm, embedder: localEmbedder },

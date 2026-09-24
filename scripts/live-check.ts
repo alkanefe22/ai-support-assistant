@@ -25,6 +25,7 @@ const QUESTIONS: { lang: "tr" | "en"; q: string; want: Outcome; semantic?: boole
   { lang: "en", q: "I have bad breath, can you help?", want: "answer", semantic: true },
   { lang: "tr", q: "Ağzım kötü kokuyor", want: "answer", semantic: true }, // a complaint, no question words
   { lang: "tr", q: "Diş teli takıyor musunuz?", want: "answer", semantic: true },
+  { lang: "tr", q: "Göz muayenesi yapıyor musunuz?", want: "handoff" }, // near-domain: the model must decline
   { lang: "tr", q: "Kanal tedavisi ne kadar tutar?", want: "handoff" },
   { lang: "tr", q: "Yirmilik diş çekimi yapıyor musunuz?", want: "handoff" },
   { lang: "en", q: "How much is a root canal?", want: "handoff" },

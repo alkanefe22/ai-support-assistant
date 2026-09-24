@@ -46,7 +46,9 @@ const CASES: Case[] = [
   { lang: "tr", q: "Yarın İstanbul'da hava nasıl olacak?", expect: null, kind: "out" },
   { lang: "tr", q: "Bana bir kek tarifi verir misin?", expect: null, kind: "out" },
   { lang: "tr", q: "Dolar kuru bugün kaç TL?", expect: null, kind: "out" },
-  { lang: "tr", q: "Göz muayenesi yapıyor musunuz?", expect: null, kind: "out" },
+  // near-domain: a health "examination" the clinic does not offer. Word-level close to "İlk muayene", so a
+  // semantic search may rank it high; like the dental cases below, the model must decline it.
+  { lang: "tr", q: "Göz muayenesi yapıyor musunuz?", expect: null, kind: "out-near" },
   { lang: "en", q: "What's the weather like tomorrow?", expect: null, kind: "out" },
   { lang: "en", q: "Do you sell laptops?", expect: null, kind: "out" },
   { lang: "en", q: "Can you fix my car engine?", expect: null, kind: "out" },
@@ -133,7 +135,8 @@ function topFor(r: Row, weightCos: number) {
  * the middle of it.
  */
 function search(rows: Row[]) {
-  const gate = rows.filter((r) => r.kind !== "out-dental");
+  const modelGated = (k: string) => k === "out-dental" || k === "out-near";
+  const gate = rows.filter((r) => !modelGated(r.kind));
   const pos = gate.filter((r) => r.expect !== null);
   const neg = gate.filter((r) => r.expect === null);
   let best: { weightCos: number; margin: number; lo: number; hi: number; wrongSection: string[] } | null = null;
@@ -169,7 +172,7 @@ async function main() {
   console.log(`  lowest in-domain/synonym score ${s.lo.toFixed(3)}, highest off-topic score ${s.hi.toFixed(3)}, margin ${s.margin.toFixed(3)}`);
   if (s.margin <= 0) console.log("  ⚠ no clean separation: some off-topic questions score like real ones; expect mistakes");
   for (const q of s.wrongSection) console.log(`  ✗ finds the wrong section: ${q}`);
-  for (const r of rows.filter((x) => x.kind === "out-dental")) {
+  for (const r of rows.filter((x) => x.kind === "out-dental" || x.kind === "out-near")) {
     const passes = topFor(r, s.weightCos).score >= s.minScore;
     console.log(`  ${passes ? "→ model must decline" : "✓ blocked"}: ${r.q}`);
   }

@@ -132,7 +132,7 @@ describe("retrieval thresholds for uncalibrated models", () => {
 describe("end to end with AI_PROVIDER=ollama (fetch mocked)", () => {
   it("answers from the knowledge base through the local model", async () => {
     process.env.AI_PROVIDER = "ollama";
-    mockFetch(() => ({ message: { content: "Ofis tipi diş beyazlatma 6.500 TL'dir." } }));
+    mockFetch(() => ({ message: { content: "Ofis tipi diş beyazlatma 6.500 TL'dir. [[SOURCE:1]]" } }));
     const store = await seededStore();
     const res = await handleChat(
       { assistantId: DEMO_ASSISTANT_ID, message: "Diş beyazlatma ne kadar?", lang: "tr" },

@@ -17,18 +17,18 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 208 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 225 otomatik test + tarayıcıda elle doğrulandı |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
-| Yerel model, Ollama | 🟡 **Kısmen doğrulandı (24.09.2026):** `qwen3.5:9b` + yerel arama ile `npm run live-check` 11/11 (bilgi tabanından doğru cevap, bilinmeyen sorularda yönlendirme, sohbet mesajlarına doğal cevap). Eşanlamlı sorular ve modelin kendi `[[NO_ANSWER]]` kararı `bge-m3` embedding ile henüz denenmedi. |
+| Yerel model, Ollama | ✅ **Uçtan uca doğrulandı (24.09.2026):** `qwen3.5:9b` + `bge-m3` ile `npm run live-check` üç ardışık çalıştırmada 12/12 (toplam 36/36): bilgi tabanından kaynaklı cevap, eşanlamlılar (ağız kokusu → halitozis, diş teli → ortodonti), bilgi tabanında olmayan sorularda modelin kendi reddi, sohbet mesajlarına doğal cevap. `bge-m3` eşiği: `RETRIEVAL_WEIGHT_COS=1`, `RETRIEVAL_MIN_SCORE=0.468`. |
 | Üretim (kalıcı veritabanı, çoklu müşteri, ödeme) | ⚪ Kapsam dışı, bkz. [NEXT_STEPS.md](NEXT_STEPS.md) |
 
 ## Özellikler
 
 - **Bilgi tabanı:** PDF, TXT, Markdown yükleme veya SSS metni yapıştırma → yapıya duyarlı parçalama (chunk) → embedding → hibrit arama.
 - **Kaynaklı cevap:** Her cevabın altında hangi belgenin hangi bölümünden geldiği açılır kutuda gösterilir.
-- **Uydurmama:** Güven eşiğinin altındaki sorular LLM'e hiç gönderilmez; model de bağlamda cevap yoksa `[[NO_ANSWER]]` döndürmek zorundadır.
+- **Uydurmama:** Güven eşiğinin altındaki sorular LLM'e hiç gönderilmez; model de bağlamda cevap yoksa `[[NO_ANSWER]]` döndürmek zorundadır. Her cevap kullandığı parçayı `[[SOURCE:n]]` ile belirtmek zorundadır: gösterilen kaynak tahmin değil modelin kullandığı parçadır, kaynaksız cevap ve "bilgi bulunmamaktadır" gibi düz yazıyla yazılmış redler yetkiliye yönlendirilir.
 - **Lead toplama:** Cevaplanamayan soruda widget içinde KVKK onaylı iletişim formu açılır.
 - **Doğal sohbet:** "slm", "mrb", "tşk", "tamam", "?" ve yazım hataları ("merhaa") API çağrısı olmadan tanınır, lead formu açılmaz. Canlı modda kurallara uymayan sohbet mesajlarını model yanıtlar; bilgi isteyen mesajlar yine yalnızca bilgi tabanından cevaplanır, modelin sohbet cevabında rakam/e-posta/link varsa reddedilir.
 - **Yönetim paneli:** Bilgi tabanı yükleme/silme/yeniden indeksleme, asistan adı/rengi/karşılama mesajı (TR/EN), izinli domainler, sohbet geçmişi, cevaplanamayan sorular (en çok sorulan üstte), leadler + CSV dışa aktarma, birden fazla asistan.
@@ -287,13 +287,14 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 
 ## Testler
 
-`npm test` — 208 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 225 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
 - `injection.test.ts` — tespit, kaçışlama, veri bloğu yapısı, zehirli belge, jailbreak, sızıntı filtresi.
 - `readonly.test.ts` — erişim matrisi; public demoda gerçek server action'ların (Next.js `cookies`/`redirect` taklit edilerek) hiçbir veriyi değiştirmediği, CSV'nin `403` döndüğü, sahibin giriş yapıp tam yetki aldığı; e-posta/telefon/isim maskeleme.
 - `parse.test.ts` — test içinde üretilen gerçek bir PDF'ten metin çıkarıp cevaplanabilir hale getirme.
+- `answer.test.ts` — zorunlu kaynak etiketi (gösterilen kaynak = kullanılan parça, kaynaksız cevabın reddi, bilgi tabanının etiket taklit edememesi), düz yazıyla "bilgi yok" cevaplarının yakalanması (gerçek model çıktılarıyla) ve normal cevapların yanlışlıkla reddedilmemesi.
 - `smalltalk.test.ts` — selamlaşma/teşekkür/onay ve yazım hataları, gerçek soruların selam sanılmaması, canlı modda sohbet cevabının kuralları (uydurma rakam/e-posta/link reddi).
 - `ollama.test.ts` — Ollama sohbet ve embedding istek biçimi, `<think>` bloğunun gizlenmesi, eşiklerin env ile ayarı, uçtan uca akış (fetch taklit edilerek).
 - `i18n.test.ts` — TR/EN asistan ve işletme adları: geri düşme, widget ayar ucu, İngilizce ziyaretçide sistem promptu.

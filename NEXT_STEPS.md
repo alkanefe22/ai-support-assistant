@@ -6,7 +6,7 @@ Sırayla ilerle. Her madde tek başına bitirilebilir.
 
 1. `npm install`
 2. `.env.local` yerinde mi kontrol et (repoda yok, yalnızca bu bilgisayarda). Yoksa `.env.example`'dan oluştur.
-3. `npm test` → 208/208 geçmeli.
+3. `npm test` → 225/225 geçmeli.
 
 ## 1. Canlı modu uçtan uca doğrula (~3 dk, 8 sohbet + 10 embedding çağrısı)
 
