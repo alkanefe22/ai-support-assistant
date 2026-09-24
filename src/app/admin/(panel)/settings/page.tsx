@@ -28,11 +28,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <form action={saveSettings}>
             <fieldset disabled={ro} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Asistan adı">
+              <Field label="Asistan adı (TR)">
                 <input name="name" defaultValue={a.name} maxLength={60} className={inputCls} required />
               </Field>
-              <Field label="İşletme adı">
+              <Field label="İşletme adı (TR)">
                 <input name="businessName" defaultValue={a.businessName} maxLength={80} className={inputCls} required />
+              </Field>
+              <Field label="Asistan adı (EN)" hint="Boşsa İngilizce sayfada da Türkçe ad gösterilir.">
+                <input name="nameEn" defaultValue={a.nameEn ?? ""} maxLength={60} className={inputCls} />
+              </Field>
+              <Field label="İşletme adı (EN)" hint="Widget başlığında İngilizce ziyaretçilere gösterilir.">
+                <input name="businessNameEn" defaultValue={a.businessNameEn ?? ""} maxLength={80} className={inputCls} />
               </Field>
             </div>
             <Field label="Tema rengi">

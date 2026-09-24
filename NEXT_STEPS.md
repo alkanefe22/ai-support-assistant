@@ -6,7 +6,7 @@ Sırayla ilerle. Her madde tek başına bitirilebilir.
 
 1. `npm install`
 2. `.env.local` yerinde mi kontrol et (repoda yok, yalnızca bu bilgisayarda). Yoksa `.env.example`'dan oluştur.
-3. `npm test` → 100/100 geçmeli.
+3. `npm test` → 104/104 geçmeli.
 
 ## 1. Canlı modu uçtan uca doğrula (~3 dk, 8 sohbet + 10 embedding çağrısı)
 
@@ -40,4 +40,4 @@ Sırayla ilerle. Her madde tek başına bitirilebilir.
 3. **KVKK metni:** aydınlatma metni + açık rıza sayfası, widget'taki onay kutusundan link; saklama süresi ve otomatik silme; sağlayıcılarla veri işleme sözleşmesi.
 4. **Ödeme:** abonelik planları (örn. mesaj/ay kotası), Stripe veya iyzico; plan limitini `DAILY_REQUEST_LIMIT` yerine veritabanından oku.
 5. Yeni lead için e-posta/webhook bildirimi.
-6. Cevapları stream etme ve widget'ta işletme adının dile göre değişmesi (küçük UX işleri).
+6. Cevapları stream etme (küçük UX işi).

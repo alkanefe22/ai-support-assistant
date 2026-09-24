@@ -4,11 +4,22 @@ export interface AssistantSettings {
   id: string;
   name: string;
   businessName: string;
+  /** English display names; empty/missing → the default (Turkish) names above are used. */
+  nameEn?: string;
+  businessNameEn?: string;
   color: string;
   welcome: Record<Lang, string>;
   /** Origins allowed to embed the widget. Empty = any origin. */
   allowedOrigins: string[];
   createdAt: string;
+}
+
+/** Assistant and business name to show a visitor in the given language. */
+export function displayNames(a: AssistantSettings, lang: Lang): { name: string; businessName: string } {
+  if (lang === "en") {
+    return { name: a.nameEn || a.name, businessName: a.businessNameEn || a.businessName };
+  }
+  return { name: a.name, businessName: a.businessName };
 }
 
 export interface KnowledgeDocument {

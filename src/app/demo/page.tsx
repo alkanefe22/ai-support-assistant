@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import { DEMO_ASSISTANT_ID } from "@/lib/seed";
 
-export const metadata: Metadata = {
-  title: "Gülümse Diş Kliniği — Demo",
-  robots: { index: false },
-};
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ lang?: string }>;
+}): Promise<Metadata> {
+  const en = (await searchParams).lang === "en";
+  return { title: en ? "Gülümse Dental Clinic — Demo" : "Gülümse Diş Kliniği — Demo", robots: { index: false } };
+}
 
 const COPY = {
   tr: {

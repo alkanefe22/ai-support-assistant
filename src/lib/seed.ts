@@ -11,6 +11,8 @@ export const DEMO_ASSISTANT: AssistantSettings = {
   id: DEMO_ASSISTANT_ID,
   name: "Gülümse Asistan",
   businessName: "Gülümse Diş Kliniği",
+  nameEn: "Gülümse Assistant",
+  businessNameEn: "Gülümse Dental Clinic",
   color: "#0d9488",
   welcome: {
     tr: "Merhaba! Ben Gülümse Diş Kliniği'nin asistanıyım. Randevu, fiyatlar, tedaviler veya çalışma saatleri hakkında sorabilirsiniz.",

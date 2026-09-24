@@ -1,5 +1,6 @@
 import { json, originAllowed, preflight } from "@/lib/cors";
 import { getStore } from "@/lib/store";
+import { displayNames } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,8 @@ export async function GET(req: Request) {
       id: assistant.id,
       name: assistant.name,
       businessName: assistant.businessName,
+      // per-language header texts for the widget (falls back to the default names)
+      names: { tr: displayNames(assistant, "tr"), en: displayNames(assistant, "en") },
       color: assistant.color,
       welcome: assistant.welcome,
     },

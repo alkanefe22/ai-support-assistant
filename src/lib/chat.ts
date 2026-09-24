@@ -7,7 +7,7 @@ import { getEmbedder, type Embedder } from "./rag/embeddings";
 import { retrieve, type ScoredChunk } from "./rag/retrieval";
 import { detectLang } from "./rag/text";
 import type { Store } from "./store";
-import type { ChatResult, Conversation, Lang, SourceRef, UnansweredQuestion } from "./types";
+import { displayNames, type ChatResult, type Conversation, type Lang, type SourceRef, type UnansweredQuestion } from "./types";
 
 export const HANDOFF_MESSAGE: Record<Lang, string> = {
   tr: "Bu konuda bilgim yok, sizi yetkiliye yönlendireyim. İletişim bilgilerinizi bırakırsanız ekibimiz en kısa sürede size dönüş yapar.",
@@ -104,11 +104,12 @@ export async function handleChat(input: ChatInput, deps: ChatDeps): Promise<Chat
     if (!result.confident) {
       failReason = "no_match";
     } else if (llm) {
+      const names = displayNames(assistant, lang);
       const prompt = buildPrompt({
         question: message,
         hits: result.hits,
-        assistantName: assistant.name,
-        businessName: assistant.businessName,
+        assistantName: names.name,
+        businessName: names.businessName,
         lang,
         maxContextTokens: cfg.maxContextTokens,
         history,

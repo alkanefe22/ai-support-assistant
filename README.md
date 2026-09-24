@@ -17,7 +17,7 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 100 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 104 otomatik test + tarayıcıda elle doğrulandı |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
@@ -277,13 +277,14 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 
 ## Testler
 
-`npm test` — 100 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 104 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
 - `injection.test.ts` — tespit, kaçışlama, veri bloğu yapısı, zehirli belge, jailbreak, sızıntı filtresi.
 - `readonly.test.ts` — erişim matrisi; public demoda gerçek server action'ların (Next.js `cookies`/`redirect` taklit edilerek) hiçbir veriyi değiştirmediği, CSV'nin `403` döndüğü, sahibin giriş yapıp tam yetki aldığı; e-posta/telefon/isim maskeleme.
 - `parse.test.ts` — test içinde üretilen gerçek bir PDF'ten metin çıkarıp cevaplanabilir hale getirme.
+- `i18n.test.ts` — TR/EN asistan ve işletme adları: geri düşme, widget ayar ucu, İngilizce ziyaretçide sistem promptu.
 - `units.test.ts` — chunker, Türkçe normalizasyon, embedding, rate limiter.
 
 ## Deploy ve üretim notları

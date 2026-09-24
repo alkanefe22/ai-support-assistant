@@ -64,7 +64,7 @@ kurulmadı, hesap ayarı değiştirilmedi. Tüm iş yerel git geçmişinde (7 co
   Gerçek kullanımda `EMBEDDING_PROVIDER=gemini` önerilir.
 - Yerel JSON veritabanı tek süreç içindir; Vercel'de `/tmp`'de geçicidir. Rate limit bellek içidir (instance başına).
 - Widget cevapları stream etmiyor (MVP kararı), cevap tek seferde geliyor.
-- Widget başlığındaki işletme adı dile göre değişmiyor (EN sayfada da "Gülümse Diş Kliniği").
+- ~~Widget başlığındaki işletme adı dile göre değişmiyor.~~ Düzeltildi: panelde EN asistan ve işletme adı alanları var.
 - Yeni lead için e-posta/webhook bildirimi yok; işletme panelden bakmalı.
 
 ## Senin yapman gerekenler
@@ -102,5 +102,6 @@ npm test
   reddediliyor, lead CSV'si `403`, ziyaretçi iletişim bilgileri maskeleniyor. 23 yeni test; ayrıca tarayıcıda form
   kilidi JavaScript ile açılıp gönderildi, sunucu reddetti.
 - ESLint (flat config, `eslint-config-next` core-web-vitals + typescript) eklendi.
-- Son durum: 100/100 test, typecheck, lint ve production build temiz.
+- Son durum: 104/104 test, typecheck, lint ve production build temiz.
+- Widget başlığı ve demo sayfa başlığı artık ziyaretçinin diline göre (TR/EN) değişiyor.
 - Devam etmek için: [NEXT_STEPS.md](NEXT_STEPS.md).

@@ -14,6 +14,7 @@ interface WidgetConfig {
   id: string;
   name: string;
   businessName: string;
+  names?: Record<Lang, { name: string; businessName: string }>;
   color: string;
   welcome: Record<Lang, string>;
 }
@@ -196,7 +197,13 @@ function safeStorage(): Storage | null {
     input.placeholder = t.placeholder;
     sendBtn.textContent = t.send;
     foot.textContent = t.powered;
-    panel.setAttribute("aria-label", config?.name ?? t.open);
+    // older servers only send name/businessName; newer ones send per-language names
+    const names = config?.names?.[lang] ?? (config ? { name: config.name, businessName: config.businessName } : null);
+    if (names) {
+      nameEl.textContent = names.name;
+      bizEl.textContent = names.businessName;
+    }
+    panel.setAttribute("aria-label", names?.name ?? t.open);
   }
 
   function scroll() {
@@ -280,8 +287,6 @@ function safeStorage(): Storage | null {
     if (!res.ok) throw new Error(String(res.status));
     config = (await res.json()) as WidgetConfig;
     host.style.setProperty("--c", config.color);
-    nameEl.textContent = config.name;
-    bizEl.textContent = config.businessName;
     applyLang();
   }
 

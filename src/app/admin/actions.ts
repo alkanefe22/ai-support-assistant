@@ -132,6 +132,9 @@ export async function saveSettings(fd: FormData) {
     ...assistant,
     name: str(fd, "name", 60) || assistant.name,
     businessName: str(fd, "businessName", 80) || assistant.businessName,
+    // may be cleared on purpose: empty falls back to the Turkish name
+    nameEn: str(fd, "nameEn", 60),
+    businessNameEn: str(fd, "businessNameEn", 80),
     color: COLOR.test(color) ? color : assistant.color,
     welcome: {
       tr: str(fd, "welcomeTr", 400) || assistant.welcome.tr,
@@ -160,6 +163,7 @@ export async function createAssistant(fd: FormData) {
     id,
     name: `${businessName} Asistan`,
     businessName,
+    nameEn: `${businessName} Assistant`,
     color: "#2563eb",
     welcome: {
       tr: `Merhaba! ${businessName} hakkında sorularınızı yanıtlayabilirim.`,
