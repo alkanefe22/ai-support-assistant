@@ -10,3 +10,8 @@ data/tmp/
 *.tsbuildinfo
 next-env.d.ts
 public/widget.js
+
+# Local agent/editor config (kept out of the repo)
+.claude/
+CLAUDE.md
+AGENTS.md
