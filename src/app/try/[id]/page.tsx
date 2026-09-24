@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getStore } from "@/lib/store";
-import { isActiveTrial } from "@/lib/try/trial";
+import { isActiveTrial, suggestionText } from "@/lib/try/trial";
 import { AskButtons, InterestForm } from "./TryClient";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export default async function TrialPreview({ params }: { params: Promise<{ id: s
 
   const chunks = await store.getChunks(id);
   const lang = chunks.some((c) => c.lang === "tr") || chunks.length === 0 ? "tr" : "en";
-  const fromKb = [...new Set(chunks.map((c) => c.heading.trim()).filter((h) => /\?$/.test(h) && h.length <= 80))].slice(0, 4);
+  const fromKb = [...new Set(chunks.map((c) => suggestionText(c.heading)).filter((h) => /\?$/.test(h) && h.length <= 80))].slice(0, 4);
   // the knowledge base's own questions first, then a generic one, and one off-topic question to show it won't invent
   const suggestions = [...fromKb, ...GENERIC[lang].filter((q) => !fromKb.includes(q))].slice(0, 5);
   if (!suggestions.includes(GENERIC[lang][3])) suggestions.push(GENERIC[lang][3]);

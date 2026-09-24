@@ -65,6 +65,18 @@ export function normalizeUrl(raw: string): string {
   }
 }
 
+/** "SSS | Kahve Dünyası" → "SSS": the brand is already on every page. */
+export function pageLabel(title: string, brand: string): string {
+  const segs = title.split(/\s+[|\-–—:·]\s+/).map((x) => x.trim()).filter((x) => x && x !== brand);
+  return segs.join(" – ") || title;
+}
+
+/** A heading shown as a clickable question: no bullets or numbering, sentence-cased if SHOUTED. */
+export function suggestionText(h: string): string {
+  const t = h.replace(/^\s*([•·*–—-]|\d+[.)])\s*/, "").replace(/\s+/g, " ").trim();
+  return t === t.toLocaleUpperCase("tr") && /\p{L}{3}/u.test(t) ? t.charAt(0) + t.slice(1).toLocaleLowerCase("tr") : t;
+}
+
 export function isActiveTrial(a: AssistantSettings | null, now = Date.now()): a is AssistantSettings & { trial: NonNullable<AssistantSettings["trial"]> } {
   return !!a?.trial && Date.parse(a.trial.expiresAt) >= now;
 }
@@ -95,7 +107,8 @@ export async function createTrial(store: Store, input: TrialInput, embedder: Emb
       const homeTitle = site.pages[0]?.title;
       docs = site.pages.map((p, i) => {
         const heading = /^## (.+)$/m.exec(p.text)?.[1].trim();
-        const own = p.title && (i === 0 || p.title !== homeTitle) ? p.title : "";
+        if (i === 0) return { title: site.lang === "en" ? "Home page" : "Ana sayfa", text: p.text };
+        const own = p.title && p.title !== homeTitle ? pageLabel(p.title, site.businessName) : "";
         return { title: (own || heading || new URL(p.url).pathname).slice(0, 120), text: p.text };
       });
       businessName ||= site.businessName;
@@ -170,10 +183,12 @@ export async function createTrial(store: Store, input: TrialInput, embedder: Emb
     }
   } catch (err) {
     await store.deleteAssistant(assistant.id);
-    throw new TrialError(`Bilgi tabanı oluşturulamadı: ${err instanceof Error ? err.message : "bilinmeyen hata"}`, 502);
+    console.error("[try] ingest failed", err instanceof Error ? err.message : err);
+    // the embedding provider is down or overloaded; the visitor only needs to know it's temporary
+    throw new TrialError("Yapay zekâ hizmetine şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.", 503);
   }
 
-  const headings = (await store.getChunks(assistant.id)).map((c) => c.heading).filter((h) => /\?$/.test(h.trim()));
+  const headings = (await store.getChunks(assistant.id)).map((c) => suggestionText(c.heading)).filter((h) => /\?$/.test(h) && h.length <= 80);
   return {
     assistant: (await store.getAssistant(assistant.id)) ?? assistant,
     pages: docs.map((d) => d.title),

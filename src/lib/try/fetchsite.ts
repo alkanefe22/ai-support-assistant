@@ -131,6 +131,14 @@ export interface PageInfo {
   links: string[];
 }
 
+const LANG_SWITCHER = /^(##\s*)?([-|/•]?\s*\b(TR|EN|DE|FR|AR|RU|ES|IT|NL)\b\s*[-|/•]?\s*){2,}$/;
+
+/** A heading line for the chunker; decorations like "• " or "1. " dropped. */
+function heading(inner: string): string {
+  const t = decode(inner.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").replace(/^[•·*–—-]\s*/, "").trim();
+  return t ? `\n\n## ${t}\n` : "\n";
+}
+
 /** Dependency-free readable-text extraction, good enough for typical small-business sites. */
 export function extractPage(html: string, pageUrl: URL): PageInfo {
   const head = html.match(/<head[\s\S]*?<\/head>/i)?.[0] ?? "";
@@ -157,8 +165,8 @@ export function extractPage(html: string, pageUrl: URL): PageInfo {
     // navigation and cookie banners repeat on every page and bury the content
     .replace(/<(nav|header)\b[\s\S]*?<\/\1>/gi, " ")
     .replace(/<[^>]*(cookie|consent|gdpr|kvkk-banner)[^>]*>[\s\S]{0,2000}?<\/div>/gi, " ")
-    .replace(/<h[1-4]\b[^>]*>([\s\S]*?)<\/h[1-4]>/gi, (_, t) => `\n\n## ${t.replace(/<[^>]+>/g, " ")}\n`)
-    .replace(/<(dt|summary)\b[^>]*>([\s\S]*?)<\/\1>/gi, (_, _t, t) => `\n\n## ${t.replace(/<[^>]+>/g, " ")}\n`)
+    .replace(/<h[1-4]\b[^>]*>([\s\S]*?)<\/h[1-4]>/gi, (_, t) => heading(t))
+    .replace(/<(dt|summary)\b[^>]*>([\s\S]*?)<\/\1>/gi, (_, _t, t) => heading(t))
     .replace(/<li\b[^>]*>/gi, "\n- ")
     .replace(/<\/(p|div|section|article|li|tr|dd|table|ul|ol|blockquote|footer|main)>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -168,7 +176,8 @@ export function extractPage(html: string, pageUrl: URL): PageInfo {
   const text = decode(body)
     .split("\n")
     .map((l) => l.replace(/[ \t ]+/g, " ").trim())
-    .filter((l) => l && l !== "-" && !/^(## )?\s*$/.test(l))
+    // "## ?" tooltip buttons, empty bullets, language switchers ("TR | EN | DE")
+    .filter((l) => l && l !== "-" && !/^(## )?\s*$/.test(l) && !/^## [^\p{L}\d]*$/u.test(l) && !LANG_SWITCHER.test(l))
     .join("\n")
     .replace(/\n{3,}/g, "\n\n");
 
@@ -184,14 +193,41 @@ export function extractPage(html: string, pageUrl: URL): PageInfo {
 }
 
 // Pages a support assistant needs most, in both languages.
-const PRIORITY = /(s\.?s\.?s|sik-?sorulan|faq|soru|help|destek|support|fiyat|ucret|price|pricing|tarife|hizmet|service|urun|product|iletisim|contact|hakkimizda|about|iade|return|kargo|shipping|teslimat|delivery|garanti|warranty|odeme|payment|randevu|appointment|menu|saat|hours|kampanya|policy|politika|kosul|terms)/i;
+const PRIORITY = /(s\.?s\.?s|sik-?sorulan|faq|soru|help|destek|support|fiyat|ucret|price|pricing|tarife|hizmet|service|urun|product|iletisim|contact|hakkimizda|about|iade|return|kargo|shipping|teslimat|delivery|garanti|warranty|odeme|payment|randevu|appointment|menu|saat|hours|kampanya|sube|magaza|store|location)/i;
+// Legal / corporate pages: rarely what a customer asks, and they eat the page budget.
+const LOW = /(cerez|cookie|gizlilik|privacy|kvkk|kisisel-veri|aydinlatma|politika|policy|terms|kullanim-kosul|yasal|legal|insan-kaynak|kariyer|career|jobs|basin|press|yatirimci|investor|kalite)/i;
 const SKIP = /\.(pdf|jpe?g|png|gif|webp|svg|zip|rar|mp4|mp3|docx?|xlsx?)(\?|$)|\/(wp-admin|wp-login|login|giris|sepet|cart|checkout|hesabim|account|tag|etiket|author|feed)\b|[?&](add-to-cart|replytocom|share)=/i;
 
+const fold = (s: string) =>
+  s.toLocaleLowerCase("tr").replace(/ı/g, "i").replace(/ş/g, "s").replace(/ç/g, "c").replace(/ğ/g, "g").replace(/ö/g, "o").replace(/ü/g, "u");
+
+/** One key per page: "/sss", "/sss/" and "/SSS" are the same page. */
+function pageKey(l: string): string {
+  const u = new URL(l);
+  return `${u.host}${fold(decodeURIComponent(u.pathname)).replace(/\/+$/, "")}${u.search}`;
+}
+
+// Other-language copies of the same site ("/en/", "/de/hakkimizda", "?lang=en"): same facts, triple the budget.
+const LANG_PATH = /^\/(en|de|fr|ar|ru|es|it|nl|tr)(\/|$|-)|[?&](lang|language|dil)=/i;
+
 export function rankLinks(links: string[], start: URL): string[] {
-  const norm = (s: string) => s.toLocaleLowerCase("tr").replace(/[ıİ]/g, "i").replace(/[şŞ]/g, "s").replace(/[çÇ]/g, "c").replace(/[ğĞ]/g, "g").replace(/[öÖ]/g, "o").replace(/[üÜ]/g, "u");
+  const home = pageKey(start.toString());
+  const homeLang = LANG_PATH.exec(start.pathname)?.[1]?.toLowerCase();
+  const seen = new Set<string>();
   return links
-    .filter((l) => !SKIP.test(l) && l.replace(/\/$/, "") !== start.toString().replace(/\/$/, ""))
-    .map((l) => ({ l, score: (PRIORITY.test(norm(decodeURIComponent(l))) ? 10 : 0) - new URL(l).pathname.split("/").length }))
+    .filter((l) => {
+      const k = pageKey(l);
+      const u = new URL(l);
+      const lang = LANG_PATH.exec(u.pathname)?.[1]?.toLowerCase() ?? (LANG_PATH.test(u.search) ? "other" : undefined);
+      if (SKIP.test(l) || k === home || seen.has(k) || (lang && lang !== homeLang)) return false;
+      seen.add(k);
+      return true;
+    })
+    .map((l) => {
+      const path = fold(decodeURIComponent(new URL(l).pathname + new URL(l).search));
+      const score = (PRIORITY.test(path) ? 10 : 0) - (LOW.test(path) ? 20 : 0) - new URL(l).pathname.split("/").length;
+      return { l, score };
+    })
     .sort((a, b) => b.score - a.score)
     .map((x) => x.l);
 }
@@ -203,30 +239,73 @@ export interface CrawlResult {
   lang: "tr" | "en";
 }
 
+const TITLE_SEP = /\s+[|\-–—:·]\s+/;
+
+/**
+ * The business name: og:site_name, else the title segment most pages share ("SSS | Kahve Dünyası",
+ * "İletişim | Kahve Dünyası" → "Kahve Dünyası"; the home title is often a slogan), else the home
+ * title's first segment without its SEO tail ("DentalPark Ağız ve Diş Sağlığı Merkezi, Kayseri Diş, …").
+ */
+export function guessBusinessName(pages: Pick<PageInfo, "title" | "siteName">[], host: string): string {
+  const home = pages[0];
+  if (home?.siteName?.trim()) return home.siteName.trim().slice(0, 60);
+  const counts = new Map<string, number>();
+  for (const p of pages) {
+    const segs = p.title.split(TITLE_SEP).map((x) => x.trim());
+    if (segs.length < 2) continue;
+    for (const seg of new Set(segs)) if (seg.length >= 2) counts.set(seg, (counts.get(seg) ?? 0) + 1);
+  }
+  const shared = [...counts].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1])[0]?.[0];
+  if (shared) return shared.slice(0, 60);
+  const first = (home?.title.split(TITLE_SEP)[0] ?? "").split(",")[0].trim();
+  return (first || host.replace(/^www\./, "")).slice(0, 60);
+}
+
+/**
+ * Lines that repeat on most pages are site chrome (announcement bars, footers, phone banners). Keep
+ * them once, on the home page; elsewhere they bury the content and get glued to unrelated text.
+ */
+export function stripBoilerplate(pages: PageInfo[]): PageInfo[] {
+  if (pages.length < 2) return pages;
+  const freq = new Map<string, number>();
+  for (const p of pages) for (const l of new Set(p.text.split("\n"))) freq.set(l, (freq.get(l) ?? 0) + 1);
+  const min = Math.max(2, Math.ceil(pages.length / 2));
+  return pages.map((p, i) =>
+    i === 0
+      ? p
+      : { ...p, text: p.text.split("\n").filter((l) => l.length < 15 || (freq.get(l) ?? 0) < min).join("\n").replace(/\n{3,}/g, "\n\n").trim() },
+  );
+}
+
 /** Home page plus the most relevant same-site pages (FAQ, prices, contact, …), one request at a time. */
 export async function crawlSite(startUrl: string, maxPages = 8): Promise<CrawlResult> {
   const first = await safeFetch(startUrl);
   const home = extractPage(first.body, first.url);
-  const pages: PageInfo[] = [home];
-  const seen = new Set([first.url.toString()]);
+  let pages: PageInfo[] = [home];
+  const seen = new Set([pageKey(first.url.toString())]);
+  const texts = new Set([home.text]);
   for (const link of rankLinks(home.links, first.url)) {
     if (pages.length >= maxPages) break;
-    if (seen.has(link)) continue;
-    seen.add(link);
+    if (seen.has(pageKey(link))) continue;
+    seen.add(pageKey(link));
     try {
       const r = await safeFetch(link);
-      if (r.url.host !== first.url.host) continue;
+      if (r.url.host !== first.url.host || seen.has(pageKey(r.url.toString())) && r.url.toString() !== link) continue;
+      seen.add(pageKey(r.url.toString()));
       const p = extractPage(r.body, r.url);
-      // short pages can still matter (a price list); only skip near-empty ones
-      if (p.text.length >= 80) pages.push(p);
+      // short pages can still matter (a price list); only skip near-empty ones and exact duplicates
+      if (p.text.length >= 80 && !texts.has(p.text)) {
+        pages.push(p);
+        texts.add(p.text);
+      }
     } catch {
       /* skip pages that fail; the demo works with whatever was readable */
     }
   }
-  const name = (home.siteName || home.title.split(/\s[|\-–—:]\s/)[0] || first.url.hostname).trim().slice(0, 60);
+  pages = stripBoilerplate(pages).filter((p, i) => i === 0 || p.text.length >= 80);
   return {
     pages,
-    businessName: name,
+    businessName: guessBusinessName(pages, first.url.hostname),
     themeColor: /^#[0-9a-f]{6}$/i.test(home.themeColor ?? "") ? home.themeColor : undefined,
     lang: home.lang === "en" ? "en" : "tr",
   };

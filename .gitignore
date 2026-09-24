@@ -15,3 +15,7 @@ public/widget.js
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# local test databases (crawled third-party content)
+data/*/
+!data/seed/

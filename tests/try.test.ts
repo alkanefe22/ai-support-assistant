@@ -4,8 +4,8 @@ import { randomUUID } from "node:crypto";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChat } from "@/lib/chat";
 import { localEmbedder } from "@/lib/rag/embeddings";
-import { crawlSite, extractPage, isPublicAddress, rankLinks, safeFetch } from "@/lib/try/fetchsite";
-import { cleanupExpiredTrials, createTrial, isActiveTrial, normalizeUrl, TrialError } from "@/lib/try/trial";
+import { crawlSite, extractPage, guessBusinessName, isPublicAddress, rankLinks, safeFetch, stripBoilerplate } from "@/lib/try/fetchsite";
+import { cleanupExpiredTrials, createTrial, isActiveTrial, normalizeUrl, pageLabel, suggestionText, TrialError } from "@/lib/try/trial";
 import { tempStore } from "./helpers";
 
 afterEach(() => {
@@ -92,6 +92,57 @@ describe("rankLinks", () => {
     expect(ranked).not.toContain("https://kahve.example/sepet");
     expect(ranked).not.toContain("https://kahve.example/logo.png");
     expect(ranked).not.toContain("https://kahve.example/");
+  });
+});
+
+describe("cleaning real-world sites (cases seen on live sites)", () => {
+  const page = (title: string, text: string, siteName?: string) => ({ url: "https://x.example/", title, text, links: [], siteName });
+
+  it("business name: the title segment all pages share, not the home page slogan", () => {
+    const pages = [page("Hepimizin Ortak Noktası | Kahve Dünyası", "a"), page("SSS | Kahve Dünyası", "b"), page("İletişim | Kahve Dünyası", "c")];
+    expect(guessBusinessName(pages, "www.kahvedunyasi.com")).toBe("Kahve Dünyası");
+  });
+  it("business name: the SEO tail after a comma is dropped", () => {
+    const pages = [page("DentalPark Ağız ve Diş Sağlığı Merkezi, Kayseri Diş, Zirkonyum, kanal", "a"), page("HİZMETLERİMİZ", "b")];
+    expect(guessBusinessName(pages, "www.dentalpark.com.tr")).toBe("DentalPark Ağız ve Diş Sağlığı Merkezi");
+  });
+  it("business name: og:site_name wins; the host is the last resort", () => {
+    expect(guessBusinessName([page("Ana sayfa", "a", "Pati Kuaför")], "pati.example")).toBe("Pati Kuaför");
+    expect(guessBusinessName([page("", "a")], "www.pati.example")).toBe("pati.example");
+  });
+
+  it("an announcement bar repeated on every page stays only on the home page", () => {
+    const bar = "1250 TL VE ÜZERİ SİPARİŞLERİNİZDE KARGO BEDAVA! 0 (850) 393 7070";
+    const out = stripBoilerplate([page("h", `${bar}\n## Hoş geldiniz\nKahve`), page("s", `${bar}\n## SSS\nSoru cevap`), page("i", `${bar}\n## İletişim\nAdres`)]);
+    expect(out[0].text).toContain(bar);
+    expect(out[1].text).not.toContain(bar);
+    expect(out[2].text).toBe("## İletişim\nAdres");
+  });
+
+  it("drops tooltip headings, language switchers and heading bullets", () => {
+    const html = `<body><h2>?</h2><p>TR | EN | DE</p><h3>• Üye olmadan alışveriş yapabilir miyim?</h3><p>Evet.</p></body>`;
+    const text = extractPage(html, new URL("https://x.example/")).text;
+    expect(text).toBe("## Üye olmadan alışveriş yapabilir miyim?\nEvet.");
+  });
+
+  it("the same page under different spellings is read once; legal pages come last", () => {
+    const start = new URL("https://x.example/");
+    const ranked = rankLinks(
+      ["https://x.example/cerez-politikasi", "https://x.example/sss", "https://x.example/sss/", "https://x.example/SSS", "https://x.example/kvkk", "https://x.example/hakkimizda", "https://x.example/insan-kaynaklari"],
+      start,
+    );
+    expect(ranked.filter((l) => /sss/i.test(l))).toHaveLength(1);
+    expect(rankLinks(["https://x.example/en", "https://x.example/de/hakkimizda", "https://x.example/?lang=en", "https://x.example/entegrasyon"], start)).toEqual([
+      "https://x.example/entegrasyon",
+    ]);
+    expect(ranked.slice(0, 2)).toEqual(["https://x.example/sss", "https://x.example/hakkimizda"]);
+  });
+
+  it("source labels and suggested questions read naturally", () => {
+    expect(pageLabel("SSS | Kahve Dünyası", "Kahve Dünyası")).toBe("SSS");
+    expect(pageLabel("Basecamp — Pricing", "Basecamp")).toBe("Pricing");
+    expect(suggestionText("• Üyeliğimi nasıl iptal edebilirim?")).toBe("Üyeliğimi nasıl iptal edebilirim?");
+    expect(suggestionText("DİŞLERİ TEMİZLETMEK ZARARLI MIDIR?")).toBe("Dişleri temizletmek zararlı mıdır?");
   });
 });
 
