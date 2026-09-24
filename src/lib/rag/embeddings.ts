@@ -1,4 +1,4 @@
-import { resolveEmbeddingProvider } from "../config";
+import { getConfig, resolveEmbeddingProvider } from "../config";
 import { stems } from "./text";
 
 export const LOCAL_EMBEDDING_MODEL = "local-hash-v1";
@@ -73,24 +73,56 @@ export async function geminiEmbed(texts: string[], taskType: "RETRIEVAL_DOCUMENT
   return out;
 }
 
+/** Local embedding model served by Ollama (POST /api/embed accepts a batch of inputs). */
+export async function ollamaEmbed(texts: string[]): Promise<number[][]> {
+  const cfg = getConfig();
+  const out: number[][] = [];
+  for (let i = 0; i < texts.length; i += 64) {
+    const res = await fetch(`${cfg.ollamaUrl}/api/embed`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: cfg.ollamaEmbeddingModel, input: texts.slice(i, i + 64) }),
+      signal: AbortSignal.timeout(cfg.ollamaTimeoutMs),
+    });
+    if (!res.ok) throw new Error(`Ollama embedding failed: ${res.status}`);
+    const json = (await res.json()) as { embeddings: number[][] };
+    out.push(...json.embeddings.map(l2normalize));
+  }
+  return out;
+}
+
 export interface Embedder {
   model: string;
   embedDocuments(texts: string[]): Promise<number[][]>;
   embedQuery(text: string): Promise<number[]>;
+  /** Batch of queries in one call (calibration); same vectors as embedQuery. */
+  embedQueries(texts: string[]): Promise<number[][]>;
 }
 
 export const localEmbedder: Embedder = {
   model: LOCAL_EMBEDDING_MODEL,
   embedDocuments: async (texts) => texts.map(localEmbed),
   embedQuery: async (text) => localEmbed(text),
+  embedQueries: async (texts) => texts.map(localEmbed),
 };
 
 export function getEmbedder(): Embedder {
-  if (resolveEmbeddingProvider() === "gemini") {
+  const provider = resolveEmbeddingProvider();
+  if (provider === "gemini") {
     return {
       model: geminiEmbeddingModel(),
       embedDocuments: (texts) => geminiEmbed(texts, "RETRIEVAL_DOCUMENT"),
       embedQuery: async (text) => (await geminiEmbed([text], "RETRIEVAL_QUERY"))[0],
+      embedQueries: (texts) => geminiEmbed(texts, "RETRIEVAL_QUERY"),
+    };
+  }
+  if (provider === "ollama") {
+    return {
+      // prefixed so thresholds and stored vectors are never mixed up with another provider's
+      model: `ollama:${getConfig().ollamaEmbeddingModel}`,
+      embedDocuments: ollamaEmbed,
+      embedQuery: async (text) => (await ollamaEmbed([text]))[0],
+      embedQueries: ollamaEmbed,
     };
   }
   return localEmbedder;

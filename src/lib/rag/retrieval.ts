@@ -31,11 +31,21 @@ const THRESHOLDS: Record<string, Thresholds> = {
   "gemini-embedding-2": { minScore: 0.618, minCoverage: 0, weightCos: 0.95 },
 };
 
-function thresholdsFor(model: string): Thresholds {
-  if (THRESHOLDS[model]) return THRESHOLDS[model];
-  // other Gemini embedding models: closest calibrated values (re-run `npm run calibrate`)
-  if (model.startsWith("gemini-embedding")) return THRESHOLDS["gemini-embedding-2"];
-  return THRESHOLDS[LOCAL_EMBEDDING_MODEL];
+function num(name: string): number | undefined {
+  const v = Number.parseFloat(process.env[name] ?? "");
+  return Number.isFinite(v) ? v : undefined;
+}
+
+export function thresholdsFor(model: string): Thresholds {
+  if (model === LOCAL_EMBEDDING_MODEL) return THRESHOLDS[model];
+  // Semantic models: built-in values, overridable from the env with what `npm run calibrate` prints.
+  // Uncalibrated models (e.g. any Ollama model) start from the Gemini values; calibrate before trusting them.
+  const base = THRESHOLDS[model] ?? THRESHOLDS["gemini-embedding-2"];
+  return {
+    minScore: num("RETRIEVAL_MIN_SCORE") ?? base.minScore,
+    minCoverage: num("RETRIEVAL_MIN_COVERAGE") ?? base.minCoverage,
+    weightCos: num("RETRIEVAL_WEIGHT_COS") ?? base.weightCos,
+  };
 }
 
 export function indexTextFor(c: Pick<Chunk, "heading" | "text">): string {

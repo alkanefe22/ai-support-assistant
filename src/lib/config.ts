@@ -1,7 +1,7 @@
 import path from "node:path";
 
-export type ProviderName = "demo" | "gemini" | "claude";
-export type EmbeddingProviderName = "local" | "gemini";
+export type ProviderName = "demo" | "gemini" | "claude" | "ollama";
+export type EmbeddingProviderName = "local" | "gemini" | "ollama";
 
 function int(name: string, fallback: number): number {
   const v = Number.parseInt(process.env[name] ?? "", 10);
@@ -9,13 +9,15 @@ function int(name: string, fallback: number): number {
 }
 
 /**
- * Resolves the active LLM provider. A provider is only used when its key
+ * Resolves the active LLM provider. A paid provider is only used when its key
  * exists; otherwise we fall back to demo mode so nothing can incur cost.
+ * Ollama runs on this machine: no key, no cost.
  */
 export function resolveProvider(): ProviderName {
   const wanted = (process.env.AI_PROVIDER ?? "demo").toLowerCase();
   if (wanted === "gemini" && process.env.GEMINI_API_KEY) return "gemini";
   if (wanted === "claude" && process.env.ANTHROPIC_API_KEY) return "claude";
+  if (wanted === "ollama") return "ollama";
   return "demo";
 }
 
@@ -24,6 +26,7 @@ export function resolveEmbeddingProvider(): EmbeddingProviderName {
   if (wanted === "gemini" && process.env.GEMINI_API_KEY && resolveProvider() !== "demo") {
     return "gemini";
   }
+  if (wanted === "ollama") return "ollama";
   return "local";
 }
 
@@ -33,6 +36,11 @@ export function getConfig() {
     embeddingProvider: resolveEmbeddingProvider(),
     geminiModel: process.env.GEMINI_MODEL || "gemini-3.5-flash",
     claudeModel: process.env.CLAUDE_MODEL || "claude-haiku-4-5",
+    ollamaUrl: (process.env.OLLAMA_URL || "http://localhost:11434").replace(/\/$/, ""),
+    ollamaModel: process.env.OLLAMA_MODEL || "gemma3:12b",
+    ollamaEmbeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || "bge-m3",
+    // local models can take a while on first load (weights into VRAM)
+    ollamaTimeoutMs: int("OLLAMA_TIMEOUT_MS", 120_000),
     rateLimitPerMinute: int("RATE_LIMIT_PER_MINUTE", 8),
     dailyRequestLimit: int("DAILY_REQUEST_LIMIT", 300),
     maxQuestionChars: int("MAX_QUESTION_CHARS", 500),

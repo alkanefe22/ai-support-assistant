@@ -1,6 +1,7 @@
 import { getConfig, type ProviderName } from "../config";
 import { claudeGenerate } from "./claude";
 import { geminiGenerate } from "./gemini";
+import { ollamaGenerate } from "./ollama";
 
 export interface GenerateInput {
   system: string;
@@ -24,6 +25,9 @@ export function getLlm(): LlmProvider | null {
   }
   if (cfg.provider === "claude") {
     return { name: "claude", generate: (i) => claudeGenerate(i, cfg.claudeModel) };
+  }
+  if (cfg.provider === "ollama") {
+    return { name: "ollama", generate: (i) => ollamaGenerate(i, cfg.ollamaModel) };
   }
   return null;
 }

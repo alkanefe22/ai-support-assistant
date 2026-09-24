@@ -17,10 +17,11 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 178 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 188 otomatik test + tarayıcıda elle doğrulandı |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
+| Yerel model, Ollama | 🟡 Kod hazır ve testli (sahte cevaplarla); gerçek bir Ollama modeliyle henüz denenmedi |
 | Üretim (kalıcı veritabanı, çoklu müşteri, ödeme) | ⚪ Kapsam dışı, bkz. [NEXT_STEPS.md](NEXT_STEPS.md) |
 
 ## Özellikler
@@ -74,7 +75,7 @@ flowchart LR
     RET["retrieval.ts<br/>kosinüs + terim kapsama"]
     GATE{"Güven eşiği<br/>geçti mi?"}
     PROMPT["prompt.ts<br/>veri blokları + kaçış"]
-    LLM["LLM sağlayıcı<br/>demo · Gemini · Claude"]
+    LLM["LLM sağlayıcı<br/>demo · Gemini · Claude · Ollama"]
     GUARD{"Çıktı kullanılabilir mi?<br/>NO_ANSWER / sızıntı / hata"}
     ADMIN["Yönetim paneli<br/>(server actions)"]
     ACL{"Erişim<br/>tam · salt okunur · yok"}
@@ -82,7 +83,7 @@ flowchart LR
   end
 
   DB[("Store<br/>yerel: JSON dosyası<br/>üretim: Postgres + pgvector")]
-  EMB["Embedding<br/>local-hash · gemini-embedding-2"]
+  EMB["Embedding<br/>local-hash · gemini-embedding-2 · Ollama"]
 
   W --> CFG
   W --> CHAT --> RL --> ORCH --> RET --> GATE
@@ -174,11 +175,15 @@ BASE_URL=http://localhost:3000 npm run screenshots
 
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
-| `AI_PROVIDER` | `demo` | `demo`, `gemini` veya `claude`. İlgili API anahtarı yoksa **her durumda demo moduna düşer**. |
+| `AI_PROVIDER` | `demo` | `demo`, `gemini`, `claude` veya `ollama`. Gemini/Claude anahtarı yoksa **demo moduna düşer**; `ollama` anahtar gerektirmez. |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-3.5-flash` | Gemini ile üretim (ve isteğe bağlı embedding). |
 | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` | `EMBEDDING_PROVIDER=gemini` iken kullanılan embedding modeli. |
 | `ANTHROPIC_API_KEY` / `CLAUDE_MODEL` | — / `claude-haiku-4-5` | Claude ile üretim. |
 | `EMBEDDING_PROVIDER` | `local` | `local` (ücretsiz, çevrimdışı) veya `gemini` (`GEMINI_EMBEDDING_MODEL`). Claude'un embedding API'si olmadığı için Claude modunda `local` kullanılır. Değiştirdikten sonra panelden **Yeniden indeksle** (seed ve otomatik kurulum her zaman `local` ile indeksler). |
+| `OLLAMA_URL` / `OLLAMA_MODEL` | `http://localhost:11434` / `gemma3:12b` | Yerel Ollama sunucusu ve cevap modeli. |
+| `OLLAMA_EMBEDDING_MODEL` | `bge-m3` | `EMBEDDING_PROVIDER=ollama` iken kullanılan yerel embedding modeli (çok dilli). |
+| `OLLAMA_TIMEOUT_MS` | `120000` | Yerel model ilk yüklemede yavaş olabilir. |
+| `RETRIEVAL_WEIGHT_COS` / `RETRIEVAL_MIN_SCORE` / `RETRIEVAL_MIN_COVERAGE` | — | Anlamsal embedding için "bilmiyorum" eşiği. Boşsa `gemini-embedding-2` kalibrasyonu kullanılır; başka modelde `npm run calibrate` çıktısını yapıştırın. |
 | `PUBLIC_DEMO` | — | `true` ise panel herkese **salt okunur** açılır (bkz. aşağısı). |
 | `RATE_LIMIT_PER_MINUTE` | `8` | IP + asistan başına dakikalık soru sayısı. |
 | `DAILY_REQUEST_LIMIT` | `300` | Asistan başına günlük toplam soru. |
@@ -195,6 +200,9 @@ BASE_URL=http://localhost:3000 npm run screenshots
   ekstraktif cevap ve önceden kaydedilmiş selamlama/teşekkür cevapları kullanılır. Hiçbir dış API çağrılmaz.
 - **Canlı mod:** `AI_PROVIDER=gemini` + `GEMINI_API_KEY` ya da `AI_PROVIDER=claude` + `ANTHROPIC_API_KEY`.
   Çağrılar SDK'sız, doğrudan `fetch` ile yapılır (`src/lib/llm/`), sıcaklık 0,1, 20 sn zaman aşımı, tekrar deneme yok.
+- **Yerel model (Ollama):** `AI_PROVIDER=ollama` (+ istenirse `EMBEDDING_PROVIDER=ollama`). Model bu bilgisayarda çalışır;
+  anahtar, kota ve maliyet yoktur, veri dışarı çıkmaz. Canlı testleri sınırsız tekrarlamak için idealdir. Kurulum:
+  `ollama pull gemma3:12b` ve `ollama pull bge-m3`, sonra `npm run calibrate` ve `npm run live-check`.
 - **Public salt okunur demo** (`PUBLIC_DEMO=true`): Portföy için yayına alınan sürümde ziyaretçiler paneli şifresiz gezer.
 
   | Ziyaretçi | `ADMIN_PASSWORD` yok | `ADMIN_PASSWORD` var |
@@ -278,7 +286,7 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 
 ## Testler
 
-`npm test` — 178 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 188 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
@@ -286,6 +294,7 @@ Panelde **İzin verilen siteler** doldurulursa widget uçları yalnızca o origi
 - `readonly.test.ts` — erişim matrisi; public demoda gerçek server action'ların (Next.js `cookies`/`redirect` taklit edilerek) hiçbir veriyi değiştirmediği, CSV'nin `403` döndüğü, sahibin giriş yapıp tam yetki aldığı; e-posta/telefon/isim maskeleme.
 - `parse.test.ts` — test içinde üretilen gerçek bir PDF'ten metin çıkarıp cevaplanabilir hale getirme.
 - `smalltalk.test.ts` — selamlaşma/teşekkür/onay ve yazım hataları, gerçek soruların selam sanılmaması, canlı modda sohbet cevabının kuralları (uydurma rakam/e-posta/link reddi).
+- `ollama.test.ts` — Ollama sohbet ve embedding istek biçimi, `<think>` bloğunun gizlenmesi, eşiklerin env ile ayarı, uçtan uca akış (fetch taklit edilerek).
 - `i18n.test.ts` — TR/EN asistan ve işletme adları: geri düşme, widget ayar ucu, İngilizce ziyaretçide sistem promptu.
 - `units.test.ts` — chunker, Türkçe normalizasyon, embedding, rate limiter.
 

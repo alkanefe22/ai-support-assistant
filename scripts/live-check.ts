@@ -38,13 +38,15 @@ async function main() {
   const cfg = getConfig();
   if (cfg.provider === "demo") throw new Error("No live provider configured in .env.local");
   const embedder = getEmbedder();
-  console.log(`LLM: ${cfg.provider} (${cfg.provider === "gemini" ? cfg.geminiModel : cfg.claudeModel}), embedding: ${embedder.model}\n`);
+  const model = { gemini: cfg.geminiModel, claude: cfg.claudeModel, ollama: cfg.ollamaModel, demo: "-" }[cfg.provider];
+  console.log(`LLM: ${cfg.provider} (${model}), embedding: ${embedder.model}\n`);
 
   const store = new JsonStore(path.join(os.tmpdir(), `aisa-live-${Date.now()}.json`));
   await seedDemo(store, embedder);
 
   // Free tiers allow only a few requests per minute; space the calls out instead of retrying.
-  const gapMs = Number(process.env.LIVE_CHECK_GAP_MS ?? 15_000);
+  // a local Ollama model has no rate limit, so no gap by default
+  const gapMs = Number(process.env.LIVE_CHECK_GAP_MS ?? (cfg.provider === "ollama" ? 0 : 15_000));
   let ok = 0;
   let errors = 0;
   for (const [i, t] of QUESTIONS.entries()) {

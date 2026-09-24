@@ -1,10 +1,11 @@
 /**
- * Calibrates the "I don't know" threshold for the Gemini embedding model against the demo
- * knowledge base. Quota-friendly: every text is embedded exactly once, in 3 batch calls
- * (2 for the documents, 1 for all questions); results are cached in data/tmp/calibration.json
- * so the threshold search can be re-run offline with `--offline`.
+ * Calibrates the "I don't know" threshold for the configured semantic embedding model
+ * (EMBEDDING_PROVIDER=gemini or ollama in .env.local) against the demo knowledge base.
+ * Quota-friendly: every text is embedded exactly once, in 3 batch calls (2 for the documents,
+ * 1 for all questions); results are cached in data/tmp/calibration.json so the threshold search
+ * can be re-run offline with `--offline`. Prints the env lines to paste into .env.local.
  *
- *   npm run calibrate            # needs GEMINI_API_KEY in .env.local
+ *   npm run calibrate
  *   npm run calibrate -- --offline
  */
 import fs from "node:fs";
@@ -79,21 +80,21 @@ interface Row {
 
 async function collect(): Promise<Row[]> {
   loadEnvLocal();
-  process.env.AI_PROVIDER = "gemini";
-  process.env.EMBEDDING_PROVIDER = "gemini";
   const { JsonStore } = await import("../src/lib/store/json-store");
   const { seedDemo } = await import("../src/lib/seed");
-  const { getEmbedder, geminiEmbed, cosine } = await import("../src/lib/rag/embeddings");
+  const { getEmbedder, cosine } = await import("../src/lib/rag/embeddings");
   const { retrieve } = await import("../src/lib/rag/retrieval");
 
   const embedder = getEmbedder();
-  if (embedder.model === "local-hash-v1") throw new Error("GEMINI_API_KEY missing in .env.local");
+  if (embedder.model === "local-hash-v1") {
+    throw new Error("Set EMBEDDING_PROVIDER=gemini (with GEMINI_API_KEY and AI_PROVIDER=gemini) or EMBEDDING_PROVIDER=ollama in .env.local");
+  }
   console.log(`Embedding model: ${embedder.model}`);
 
   const store = new JsonStore(path.join(os.tmpdir(), `aisa-calibrate-${Date.now()}.json`));
   await seedDemo(store, embedder); // 2 batch calls (one per document)
   const chunks = await store.getChunks("gulumse-dis");
-  const qVecs = await geminiEmbed(CASES.map((c) => c.q), "RETRIEVAL_QUERY"); // 1 batch call
+  const qVecs = await embedder.embedQueries(CASES.map((c) => c.q)); // 1 batch call
 
   const rows: Row[] = [];
   for (const [i, c] of CASES.entries()) {
@@ -118,50 +119,62 @@ async function collect(): Promise<Row[]> {
   return rows;
 }
 
-function evaluate(rows: Row[], weightCos: number, minScore: number) {
-  let correct = 0;
-  const fails: string[] = [];
-  for (const r of rows) {
-    const scored = r.candidates
-      .map((c) => ({ ...c, score: weightCos * c.cosine + (1 - weightCos) * c.coverage }))
-      .sort((a, b) => b.score - a.score);
-    const top = scored[0];
-    const confident = top.score >= minScore;
-    const ok = r.expect === null ? !confident : confident && new RegExp(r.expect).test(top.heading);
-    if (ok) correct++;
-    else fails.push(`${r.kind}: "${r.q}" → ${confident ? top.heading : "(no answer)"} [${top.score.toFixed(3)}]`);
+function topFor(r: Row, weightCos: number) {
+  return r.candidates
+    .map((c) => ({ ...c, score: weightCos * c.cosine + (1 - weightCos) * c.coverage }))
+    .sort((a, b) => b.score - a.score)[0];
+}
+
+/**
+ * The retrieval gate must let every in-domain and synonym question through (to the right
+ * section) and stop every off-topic one. Dental questions the KB does not cover are left to the
+ * model's [[NO_ANSWER]] rule, so they are reported but not used to pick the threshold.
+ * Picks the weighting with the widest gap between the two groups and puts the threshold in
+ * the middle of it.
+ */
+function search(rows: Row[]) {
+  const gate = rows.filter((r) => r.kind !== "out-dental");
+  const pos = gate.filter((r) => r.expect !== null);
+  const neg = gate.filter((r) => r.expect === null);
+  let best: { weightCos: number; margin: number; lo: number; hi: number; wrongSection: string[] } | null = null;
+  for (let w = 0.5; w <= 1.0001; w += 0.05) {
+    const weightCos = +w.toFixed(2);
+    const wrongSection = pos.filter((r) => !new RegExp(r.expect!).test(topFor(r, weightCos).heading)).map((r) => r.q);
+    const lo = Math.min(...pos.map((r) => topFor(r, weightCos).score));
+    const hi = Math.max(...neg.map((r) => topFor(r, weightCos).score));
+    const cand = { weightCos, margin: lo - hi, lo, hi, wrongSection };
+    const better =
+      !best ||
+      cand.wrongSection.length < best.wrongSection.length ||
+      (cand.wrongSection.length === best.wrongSection.length && cand.margin > best.margin);
+    if (better) best = cand;
   }
-  return { correct, fails };
+  return { ...best!, minScore: +((best!.lo + best!.hi) / 2).toFixed(3) };
 }
 
 async function main() {
   const offline = process.argv.includes("--offline");
-  const rows: Row[] = offline ? JSON.parse(fs.readFileSync(CACHE, "utf8")).rows : await collect();
+  const cached = offline ? JSON.parse(fs.readFileSync(CACHE, "utf8")) : null;
+  const rows: Row[] = cached ? cached.rows : await collect();
+  if (cached) console.log(`Embedding model (cached): ${cached.model}`);
 
   console.log("\nTop match per question (cosine / coverage):");
   for (const r of rows) {
-    const best = [...r.candidates].sort((a, b) => b.cosine - a.cosine)[0];
-    console.log(`  ${r.kind.padEnd(13)} cos ${best.cosine.toFixed(3)} cov ${best.coverage.toFixed(2)}  ${r.q}  →  ${best.heading}`);
+    const b = [...r.candidates].sort((a, c) => c.cosine - a.cosine)[0];
+    console.log(`  ${r.kind.padEnd(13)} cos ${b.cosine.toFixed(3)} cov ${b.coverage.toFixed(2)}  ${r.q}  →  ${b.heading}`);
   }
 
-  let best = { weightCos: 1, minScore: 0, correct: -1, margin: -1, fails: [] as string[] };
-  for (let w = 0.5; w <= 1.0001; w += 0.05) {
-    for (let t = 0.3; t <= 0.9; t += 0.005) {
-      const { correct, fails } = evaluate(rows, w, t);
-      // among equally accurate settings prefer the middle of the passing range (computed below)
-      if (correct > best.correct) best = { weightCos: +w.toFixed(2), minScore: +t.toFixed(3), correct, margin: 0, fails };
-    }
+  const s = search(rows);
+  console.log(`\nBest weighting: weightCos=${s.weightCos}, threshold ${s.minScore}`);
+  console.log(`  lowest in-domain/synonym score ${s.lo.toFixed(3)}, highest off-topic score ${s.hi.toFixed(3)}, margin ${s.margin.toFixed(3)}`);
+  if (s.margin <= 0) console.log("  ⚠ no clean separation: some off-topic questions score like real ones; expect mistakes");
+  for (const q of s.wrongSection) console.log(`  ✗ finds the wrong section: ${q}`);
+  for (const r of rows.filter((x) => x.kind === "out-dental")) {
+    const passes = topFor(r, s.weightCos).score >= s.minScore;
+    console.log(`  ${passes ? "→ model must decline" : "✓ blocked"}: ${r.q}`);
   }
-  // widen to the centre of the threshold interval that achieves the best accuracy for that weight
-  const passing: number[] = [];
-  for (let t = 0.3; t <= 0.9; t += 0.005) {
-    if (evaluate(rows, best.weightCos, t).correct === best.correct) passing.push(+t.toFixed(3));
-  }
-  const mid = passing[Math.floor(passing.length / 2)];
-  const final = evaluate(rows, best.weightCos, mid);
-  console.log(`\nBest: weightCos=${best.weightCos} minScore=${mid} (passing range ${passing[0]}–${passing.at(-1)})`);
-  console.log(`Correct: ${final.correct}/${rows.length}`);
-  for (const f of final.fails) console.log(`  ✗ ${f}`);
+  console.log("\nPaste into .env.local:");
+  console.log(`RETRIEVAL_WEIGHT_COS=${s.weightCos}\nRETRIEVAL_MIN_SCORE=${s.minScore}\nRETRIEVAL_MIN_COVERAGE=0`);
 }
 
 main().catch((err) => {
