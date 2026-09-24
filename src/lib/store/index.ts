@@ -18,8 +18,17 @@ export function getStore(): Promise<Store> {
       const fresh = !(await JsonStore.exists(file));
       const store = new JsonStore(file);
       if (fresh) {
-        const { seedDemo } = await import("../seed");
-        await seedDemo(store);
+        const { seedDemo, DEMO_ASSISTANT_ID } = await import("../seed");
+        const { getEmbedder, localEmbedder } = await import("../rag/embeddings");
+        // with a semantic embedding provider (live mode) the demo gets real semantic search;
+        // if that provider is unreachable, fall back to the free local index instead of failing
+        try {
+          await seedDemo(store, getEmbedder());
+        } catch (err) {
+          console.error("[store] semantic seeding failed, using local embeddings", err instanceof Error ? err.message : err);
+          await store.deleteAssistant(DEMO_ASSISTANT_ID);
+          await seedDemo(store, localEmbedder);
+        }
       }
       return store;
     })();

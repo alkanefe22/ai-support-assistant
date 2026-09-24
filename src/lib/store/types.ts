@@ -15,6 +15,8 @@ export interface Store {
   listAssistants(): Promise<AssistantSettings[]>;
   getAssistant(id: string): Promise<AssistantSettings | null>;
   saveAssistant(a: AssistantSettings): Promise<void>;
+  /** Removes the assistant and everything that belongs to it (documents, chunks, chats, leads). */
+  deleteAssistant(id: string): Promise<void>;
 
   listDocuments(assistantId: string): Promise<KnowledgeDocument[]>;
   addDocument(doc: KnowledgeDocument, chunks: Chunk[]): Promise<void>;

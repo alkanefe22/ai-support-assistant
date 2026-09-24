@@ -1,6 +1,6 @@
 import type { Chunk, Lang } from "../types";
 import { cosine, localEmbed, LOCAL_EMBEDDING_MODEL, type Embedder } from "./embeddings";
-import { stem, stemMatch, stems, synonymsOf, tokenize } from "./text";
+import { queryStems, stem, stemMatch, stems, synonymsOf, tokenize } from "./text";
 
 export interface ScoredChunk {
   chunk: Chunk;
@@ -60,6 +60,13 @@ function containsTerm(chunkStems: Set<string>, alternatives: string[]): boolean 
   return false;
 }
 
+/** How many different words of the chunk express the term (or a synonym). */
+function distinctMatches(chunkStems: Set<string>, alternatives: string[]): number {
+  let n = 0;
+  for (const s of chunkStems) if (alternatives.some((a) => stemMatch(a, s))) n++;
+  return n;
+}
+
 /**
  * IDF-weighted share of the query's terms that occur in each chunk (fuzzy stem match
  * plus synonyms). Query terms that appear nowhere in the knowledge base get the highest
@@ -70,9 +77,9 @@ function containsTerm(chunkStems: Set<string>, alternatives: string[]): boolean 
 // ("bakıyor musunuz" vs "hizmet veriyoruz"), so an unmatched verb says nothing about the topic.
 const VERBISH = /(iyor|uyor|yor|iyo|uyo|abil|ebil|mek|mak|mis|mus|irse|ursa|erse|arsa|ecek|acak|dim|dum|tim|tum|mem|mam|iniz|unuz|onuz|isiniz|usunuz|lim|lum|ir|ur)$/;
 
-function coverages(queryStems: string[], chunkStems: Set<string>[], queryTokens: string[] = []): { scores: number[]; unknown: string[] } {
+function coverages(qStems: string[], chunkStems: Set<string>[], queryTokens: string[] = []): { scores: number[]; unknown: string[] } {
   const n = chunkStems.length;
-  const terms = [...new Set(queryStems)];
+  const terms = [...new Set(qStems)];
   const scores = new Array<number>(n).fill(0);
   /** content words (5+ letters) that occur nowhere in the knowledge base */
   const unknown: string[] = [];
@@ -81,6 +88,9 @@ function coverages(queryStems: string[], chunkStems: Set<string>[], queryTokens:
   for (const q of terms) {
     const alts = [q, ...synonymsOf(q)];
     const matches = chunkStems.map((set) => containsTerm(set, alts));
+    // A chunk that expresses the concept in several ways ("açığız … kapalıyız") is about it; one
+    // passing mention ("işlem 1 saat sürer") is not. Small bonus, so it only breaks near-ties.
+    const rich = alts.length > 1 ? chunkStems.map((set) => distinctMatches(set, alts) >= 2) : [];
     const df = matches.filter(Boolean).length;
     if (df === 0 && q.length >= 5) {
       // only report it when every word with this stem looks like a noun, not a verb form
@@ -90,7 +100,7 @@ function coverages(queryStems: string[], chunkStems: Set<string>[], queryTokens:
     const idf = Math.log(1 + n / (1 + df));
     total += idf;
     matches.forEach((m, i) => {
-      if (m) scores[i] += idf;
+      if (m) scores[i] += rich[i] ? idf * 1.25 : idf;
     });
   }
   return { scores: scores.map((s) => s / total), unknown };
@@ -121,7 +131,7 @@ export async function retrieve(
   const t = model !== LOCAL_EMBEDDING_MODEL && opts.thresholds ? opts.thresholds : thresholdsFor(model);
 
   const chunkStems = pool.map((c) => new Set(stems(indexTextFor(c))));
-  const { scores: covs, unknown } = coverages(stems(query), chunkStems, tokenize(query));
+  const { scores: covs, unknown } = coverages(queryStems(query), chunkStems, tokenize(query));
 
   const scored = pool.map((chunk, i) => {
     const vec = model === chunk.embeddingModel ? chunk.embedding : localVector(chunk);

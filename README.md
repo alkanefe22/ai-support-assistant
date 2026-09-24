@@ -17,7 +17,8 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 274 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 317 otomatik test + tarayıcıda elle doğrulandı |
+| "Kendi sitenizle deneyin" (`/try`) | ✅ Yerel bir test sitesiyle tarayıcıda uçtan uca doğrulandı (site okuma → asistan → kaynaklı cevap → lead). SSRF korumalı, testli. Gerçek internet sitesiyle henüz denenmedi. |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
@@ -32,6 +33,7 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 - **Lead toplama:** Cevaplanamayan soruda widget içinde KVKK onaylı iletişim formu açılır.
 - **Doğal sohbet:** "slm", "mrb", "tşk", "tamam", "?" ve yazım hataları ("merhaa") API çağrısı olmadan tanınır, lead formu açılmaz. Canlı modda kurallara uymayan sohbet mesajlarını model yanıtlar; bilgi isteyen mesajlar yine yalnızca bilgi tabanından cevaplanır, modelin sohbet cevabında rakam/e-posta/link varsa reddedilir.
 - **Yönetim paneli:** Bilgi tabanı yükleme/silme/yeniden indeksleme, asistan adı/rengi/karşılama mesajı (TR/EN), izinli domainler, sohbet geçmişi, cevaplanamayan sorular (en çok sorulan üstte), leadler + CSV dışa aktarma, birden fazla asistan.
+- **Kendi sitenizle deneyin (`/try`):** İşletme sahibi site adresini yazar (veya SSS metni / dosya yükler); sistem sitenin SSS, fiyat, iletişim gibi sayfalarını okuyup 1 dakikada, sitenin kendi rengi ve adıyla geçici bir asistan kurar. "Bunu sitemde istiyorum" formu satış leadi olarak panelin **Denemeler** sayfasına düşer. Denemeler 24 saat sonra (ilgilenenlerde 7 gün) kendiliğinden silinir.
 - **Public salt okunur demo:** Ziyaretçiler paneli şifresiz gezebilir; yükleme, silme ve ayar değiştirme kapalıdır, ziyaretçi iletişim bilgileri maskelenir.
 - **Widget:** Tek `<script>`, bağımlılıksız, **10,6 KB (gzip ~4,3 KB)**, Shadow DOM ile host sitenin stilini bozmaz, mobilde tam ekran, klavye erişilebilir, tüm metin `textContent` ile basılır (XSS yok).
 - **Demo sitesi:** Kurgusal "Gülümse Diş Kliniği", TR ve EN bilgi tabanı hazır.
@@ -133,7 +135,7 @@ npm run dev
 npm run seed
 ```
 
-Public salt okunur demoyu yerelde denemek (`.env.local`'deki ayarlardan bağımsız olarak demo sağlayıcıyı zorlar):
+Public salt okunur demoyu yerelde denemek (`.env.local`'deki ayarlardan bağımsız olarak demo sağlayıcıyı zorlar, ücretsiz):
 
 ```bash
 npm run build
@@ -142,6 +144,16 @@ npm run build
 ```bash
 npm run start:public-demo
 ```
+
+Aynı demoyu `.env.local`'deki **gerçek yapay zekâyla** (Gemini / Claude / Ollama) açmak için. Bu modda `.env.local`'deki
+limitler geçerlidir; `/try` ziyaretçileri önerilen soruları art arda tıkladığı için `RATE_LIMIT_PER_MINUTE` değerini 5'in
+üstünde tutun:
+
+```bash
+npm run start:public-demo -- --live
+```
+
+"Kendi sitenizle deneyin" sayfası: http://localhost:3000/try
 
 ### Kalite kontrolleri
 
@@ -179,7 +191,7 @@ BASE_URL=http://localhost:3000 npm run screenshots
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — / `gemini-3.5-flash` | Gemini ile üretim (ve isteğe bağlı embedding). |
 | `GEMINI_EMBEDDING_MODEL` | `gemini-embedding-2` | `EMBEDDING_PROVIDER=gemini` iken kullanılan embedding modeli. |
 | `ANTHROPIC_API_KEY` / `CLAUDE_MODEL` | — / `claude-haiku-4-5` | Claude ile üretim. |
-| `EMBEDDING_PROVIDER` | `local` | `local` (ücretsiz, çevrimdışı) veya `gemini` (`GEMINI_EMBEDDING_MODEL`). Claude'un embedding API'si olmadığı için Claude modunda `local` kullanılır. Değiştirdikten sonra panelden **Yeniden indeksle** (seed ve otomatik kurulum her zaman `local` ile indeksler). |
+| `EMBEDDING_PROVIDER` | `local` | `local` (ücretsiz, çevrimdışı) veya `gemini` (`GEMINI_EMBEDDING_MODEL`). Claude'un embedding API'si olmadığı için Claude modunda `local` kullanılır. Değiştirdikten sonra panelden **Yeniden indeksle**. Seed ve ilk açılıştaki otomatik kurulum seçili sağlayıcıyı kullanır, ulaşılamazsa `local`'e düşer. |
 | `OLLAMA_URL` / `OLLAMA_MODEL` | `http://localhost:11434` / `gemma3:12b` | Yerel Ollama sunucusu ve cevap modeli. |
 | `OLLAMA_EMBEDDING_MODEL` | `bge-m3` | `EMBEDDING_PROVIDER=ollama` iken kullanılan yerel embedding modeli (çok dilli). |
 | `OLLAMA_TIMEOUT_MS` | `120000` | Yerel model ilk yüklemede yavaş olabilir. |
@@ -194,6 +206,11 @@ BASE_URL=http://localhost:3000 npm run screenshots
 | `ADMIN_PASSWORD` | — | Panel şifresi. Demo modunda boşsa panel açıktır (uyarı bandı gösterilir); **canlı modda boşsa panel kilitlenir**. |
 | `SESSION_SECRET` | — | Cookie imzası ve IP hash'i için uzun rastgele bir değer. |
 | `DATA_DIR` | `data` | Yerel veritabanı klasörü (Vercel'de otomatik `/tmp`). |
+| `TRY_ENABLED` | `true` | `/try` deneme özelliğini açar/kapatır. |
+| `TRY_MAX_PAGES` / `TRY_MAX_CHARS` | `8` / `60000` | Bir denemede okunacak en fazla sayfa ve metin uzunluğu. |
+| `TRY_TTL_HOURS` | `24` | Deneme asistanının ömrü ("Sitemde istiyorum" diyenlerde 7 gün). |
+| `TRY_PER_IP_PER_HOUR` / `TRY_DAILY_LIMIT` | `3` / `30` | Deneme oluşturma limitleri (her deneme embedding çağrısı yapar). |
+| `TRY_ALLOW_PRIVATE` | — | **Yalnızca yerel test:** `1` ise localhost / özel IP / standart dışı port okunabilir. Üretimde asla açmayın. |
 
 ### Çalışma modları
 
@@ -246,6 +263,21 @@ embedding eşanlamlıları yakalayamaz ("ağız kokusu" ↔ "halitozis"), bu yü
 
 `npm run live-check` uygulamanın kendi `handleChat` akışıyla 8 soruyu dener (her soru bir kez, çağrılar arası 15 sn,
 geçici bir veritabanıyla). Sağlayıcı hatası hiçbir zaman "başarılı" sayılmaz.
+
+## Kendi sitenizle deneyin (`/try`)
+
+Satış akışı: işletme sahibi `/try` sayfasına site adresini yazar → asistan hazır olunca önizleme sayfası açılır
+(sitenin adı ve `theme-color` rengiyle, widget açık, bilgi tabanındaki sorulardan üretilmiş "şunları sorun" butonları ve
+bilgi tabanında olmayan bir soru: uydurmadığını görsün) → "Bunu sitenize ekleyelim" formu → panelde **Denemeler**.
+
+| Konu | Uygulama |
+|---|---|
+| Hangi sayfalar okunur | Ana sayfa + bağlantılar arasından SSS / fiyat / hizmet / iletişim / hakkımızda öncelikli, sepet, giriş, dosya ve eski blog yazıları atlanır; en fazla `TRY_MAX_PAGES` sayfa, yalnızca aynı alan adı. |
+| SSRF | Yalnızca http/https, 80/443 portları, kullanıcı adı içeren adres yok; alan adı çözülür ve **her yönlendirmede** özel / yerel / link-local / CGNAT / IPv6 ULA adresleri reddedilir. Yanıt başına 1,5 MB ve 8 sn sınırı, yalnızca HTML. |
+| İçerik güvenliği | Okunan metin normal bilgi tabanı yolundan geçer: injection işaretleme, veri blokları, kaynak zorunluluğu aynen geçerli. |
+| Kötüye kullanım | Site sahibi olduğunu onaylama kutusu zorunlu; IP başına saatlik ve günlük toplam limit; denemeler 24 saatte silinir (sohbetler, leadler, parçalar dahil). |
+| Gizlilik | Deneme asistanları panelin asistan listesinde görünmez; salt okunur demoda Denemeler sayfasındaki iletişim bilgileri maskelenir. |
+| Bilinen sınır | JavaScript ile içerik yükleyen (SPA) sitelerde metin az çıkabilir; bu durumda kullanıcıdan SSS metni yapıştırması istenir. |
 
 ## Widget kurulumu
 
@@ -339,7 +371,7 @@ işletme başına otomatik eşik; demo modunda bilgi tabanının hiç bilmediği
 
 ## Testler
 
-`npm test` — 274 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 317 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
@@ -353,6 +385,7 @@ işletme başına otomatik eşik; demo modunda bilgi tabanının hiç bilmediği
 - `smalltalk.test.ts` — selamlaşma/teşekkür/onay ve yazım hataları, gerçek soruların selam sanılmaması, canlı modda sohbet cevabının kuralları (uydurma rakam/e-posta/link reddi).
 - `ollama.test.ts` — Ollama sohbet ve embedding istek biçimi, `<think>` bloğunun gizlenmesi, eşiklerin env ile ayarı, uçtan uca akış (fetch taklit edilerek).
 - `i18n.test.ts` — TR/EN asistan ve işletme adları: geri düşme, widget ayar ucu, İngilizce ziyaretçide sistem promptu.
+- `try.test.ts` — `/try`: sayfa okuma (başlık, renk, dil, gezinme/çerez bandı ayıklama), bağlantı önceliği, **SSRF** (özel IP'ler, localhost, metadata adresi, port, kullanıcı adı, özel IP'ye yönlendirme), sahte bir siteden uçtan uca deneme asistanı + kaynaklı cevap, süre dolunca her şeyin silinmesi, API rotasında onay ve IP limiti, "sitemde istiyorum" leadi, deneme asistanlarının panelde listelenmemesi.
 - `units.test.ts` — chunker, Türkçe normalizasyon, embedding, rate limiter.
 
 ## Deploy ve üretim notları

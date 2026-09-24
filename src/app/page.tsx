@@ -28,7 +28,10 @@ export default function Home() {
         bildiği konularda, kaynak göstererek cevap veren destek asistanı.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
-        <a href="/demo" className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">
+        <Link href="/try" className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">
+          Kendi sitenizle deneyin →
+        </Link>
+        <a href="/demo" className="rounded-lg bg-white px-5 py-3 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50">
           Demo siteyi aç (TR)
         </a>
         <a href="/demo?lang=en" className="rounded-lg bg-white px-5 py-3 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50">

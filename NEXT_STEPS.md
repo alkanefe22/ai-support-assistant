@@ -34,12 +34,25 @@ Sırayla ilerle. Her madde tek başına bitirilebilir.
 3. **Deploy**. Build komutu `npm run build` (widget'ı da derler), ek ayar gerekmez.
 4. Kontrol et: `/demo` cevap veriyor, `/admin` salt okunur bandıyla açılıyor, "Yönetici girişi" ile şifre çalışıyor.
 5. Bilinen sınır: veritabanı `/tmp`'de, her soğuk başlangıçta demo verisine döner (public demo için sorun değil).
+   **`/try` için önemli:** Vercel'de deneme asistanları ve "sitemde istiyorum" leadleri de `/tmp`'de durur ve bir sonraki
+   soğuk başlangıçta kaybolur. `/try`'ı gerçek müşteri adaylarına açmadan önce 4.1'deki kalıcı veritabanı gerekir
+   (ya da `/try`'ı sürekli çalışan tek bir sunucuda, ör. küçük bir VPS'te `npm run start:public-demo -- --live` ile yayınla).
+6. `/try`'ı gerçek yapay zekâyla aç: `AI_PROVIDER=gemini` + `EMBEDDING_PROVIDER=gemini`, `RATE_LIMIT_PER_MINUTE=10`,
+   `DAILY_REQUEST_LIMIT` ve `TRY_DAILY_LIMIT` bütçene göre. Demo modu (kelime eşleştirme) SSS tarzı sayfalarda iyi,
+   serbest yazılmış sitelerde zayıf kalır; müşteri adayına "vay" dedirtecek olan canlı moddur.
 
 ## 3. Canlı demo linkini README'ye ekle
 
 1. `README.md` → "**Live demo:** _yakında…_" satırını gerçek URL ile değiştir.
 2. GitHub repo sayfasında **About → Website** alanına da aynı URL'yi yaz.
 3. Commit + push.
+
+## 3b. İlk müşteri adaylarını getir (`/try` ile)
+
+1. `/try` linkini hedef sektördeki 20-30 işletmeye (diş kliniği, kuaför, e-ticaret, restoran) gönder: "Sitenizin adresini
+   yazın, 1 dakikada kendi müşteri asistanınızı görün."
+2. Panel → **Denemeler**: kim denedi, kaç soru sordu, hangi sorular cevapsız kaldı, kim "sitemde istiyorum" dedi.
+3. "Sitemde istiyorum" diyenlere 24 saat içinde dön; deneme asistanı 7 gün saklanır, kurulumu ondan devam ettir.
 
 ## 4. Micro-SaaS için eksikler (öncelik sırasıyla)
 

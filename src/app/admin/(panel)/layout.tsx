@@ -13,6 +13,7 @@ const NAV = [
   ["/admin/conversations", "Sohbet geçmişi"],
   ["/admin/unanswered", "Cevaplanamayanlar"],
   ["/admin/leads", "Leadler"],
+  ["/admin/trials", "Denemeler"],
 ] as const;
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {

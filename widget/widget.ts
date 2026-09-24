@@ -388,6 +388,12 @@ function safeStorage(): Storage | null {
         addAssistant(config.welcome[lang]);
       }
     },
+    /** Opens the panel and sends a question (used by the "try it" preview's suggested questions). */
+    async ask(text: string) {
+      await open();
+      const q = String(text ?? "").trim().slice(0, 500);
+      if (q) await send(q);
+    },
   };
 
   if (script.dataset.open === "true") void open();

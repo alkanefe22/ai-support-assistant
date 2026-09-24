@@ -18,7 +18,7 @@ const STOPWORDS = new Set(
   ne nedir nasil neden hangi kim zaman olan olarak olur var yok mi misiniz musunuz
   ben sen biz siz onlar benim bizim sizin size bana beni sizi acaba lutfen merhaba tesekkur
   her hic sadece bile kadar sonra once icinde uzerinde yani eger diye yapiyor yapiyorsunuz
-  miyim miydi mudur midir olabilir olursa olmak etmek yapmak istiyorum isterim
+  miyim miydi mudur midir olabilir olursa olmak etmek yapmak istiyorum isterim lazim gerekiyor
   a an the and or of to in on at for with by from is are was were be been being do does did
   can could would should will shall may might must i you we they he she it my your our their
   what how why when which who whom this that these those there here please hello hi thanks
@@ -50,7 +50,8 @@ const SYNONYM_GROUPS: string[][] = [
   ["kids", "child", "cocuk", "bebek"],
   ["adres", "konum", "nered", "where", "addre", "locat", "ulasi"],
   ["fiyat", "ucret", "price", "cost", "fee", "kac", "much", "lira", "tl", "para", "tutar"],
-  ["saat", "acik", "kapal", "hours", "open", "close"],
+  // "acig": k→ğ softening ("açığız", "açığı")
+  ["saat", "acik", "acig", "kapal", "hours", "open", "close"],
   ["taksi", "insta", "vade", "odeme", "payme", "pay"],
   ["rande", "appoi", "book", "rezer", "iptal", "cance", "erteleme"],
   ["sure", "suruy", "surer", "surec", "durat", "long"],
@@ -71,6 +72,19 @@ export function stems(text: string): string[] {
   return tokenize(text).map(stem);
 }
 
+// In a question, "çalışma saatleri" / "working hours" mean just "hours": the modifier would otherwise
+// match any text that says "we work" ("randevulu çalışırız") as strongly as the actual opening hours.
+// Knowledge-base text keeps it (a heading "Çalışma saatleriniz" should still match "çalışıyor musunuz").
+const HOURS_MODIFIER = /^(calisma|work|working|opening|business)$/;
+const HOURS_WORD = /^(saat|gun|hour|day|time)/;
+
+export function queryStems(query: string): string[] {
+  const tokens = normalize(query).split(/[^a-z0-9]+/);
+  return tokens
+    .filter((t, i) => t.length >= 2 && !STOPWORDS.has(t) && !(HOURS_MODIFIER.test(t) && HOURS_WORD.test(tokens[i + 1] ?? "")))
+    .map(stem);
+}
+
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -85,7 +99,8 @@ export function detectLang(text: string, fallback: Lang = "tr"): Lang {
 
 export function splitSentences(text: string): string[] {
   return text
-    .split(/(?<=[.!?…])\s+(?=[A-ZÇĞİÖŞÜ0-9"“(])/u)
+    // not after address / title abbreviations: "Moda Cad. No: 12" is one sentence
+    .split(/(?<![\s(](?:Cad|Cd|Sok|Sk|Mah|Bul|Blv|Apt|No|Nr|Dr|Prof|Doç|Av|Tel|vb|vs|St|Ave|Rd|Mr|Mrs|Ms)\.)(?<=[.!?…])\s+(?=[A-ZÇĞİÖŞÜ0-9"“(])/u)
     .map((s) => s.trim())
     .filter(Boolean);
 }

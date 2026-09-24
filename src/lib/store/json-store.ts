@@ -115,6 +115,19 @@ export class JsonStore implements Store {
     });
   }
 
+  deleteAssistant(id: string) {
+    return this.write((db) => {
+      const keep = <T extends { assistantId: string }>(xs: T[]) => xs.filter((x) => x.assistantId !== id);
+      db.assistants = db.assistants.filter((a) => a.id !== id);
+      db.documents = keep(db.documents);
+      db.chunks = keep(db.chunks);
+      db.conversations = keep(db.conversations);
+      db.unanswered = keep(db.unanswered);
+      db.leads = keep(db.leads);
+      for (const k of Object.keys(db.dailyCounts)) if (k.startsWith(`${id}:`)) delete db.dailyCounts[k];
+    });
+  }
+
   listDocuments(assistantId: string) {
     return this.read((db) =>
       db.documents

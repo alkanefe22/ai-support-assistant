@@ -19,6 +19,18 @@ export interface AssistantSettings {
     probeMax: Partial<Record<Lang, number>>;
     calibratedAt: string;
   };
+  /**
+   * Set for temporary assistants created by "try it with your own site" (/try). They are hidden
+   * from the admin assistant list and deleted after `expiresAt`.
+   */
+  trial?: {
+    source: string;
+    pages: string[];
+    createdAt: string;
+    expiresAt: string;
+    /** the visitor asked us to contact them ("add this to my site") */
+    interested?: boolean;
+  };
   color: string;
   welcome: Record<Lang, string>;
   /** Origins allowed to embed the widget. Empty = any origin. */
