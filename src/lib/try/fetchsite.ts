@@ -14,6 +14,8 @@ import { isIP } from "node:net";
 const MAX_BYTES = 1_500_000;
 const TIMEOUT_MS = 8_000;
 const MAX_REDIRECTS = 3;
+/** whole crawl; the rest of the time goes to embedding (the route allows 120 s) */
+const CRAWL_BUDGET_MS = 40_000;
 const USER_AGENT = "AISupportAssistant-TryBot/1.0 (+demo; reads a few public pages once)";
 
 export class FetchBlockedError extends Error {}
@@ -64,7 +66,15 @@ async function readCapped(res: Response): Promise<string> {
   const chunks: Uint8Array[] = [];
   let size = 0;
   for (;;) {
-    const { done, value } = await reader.read();
+    let part: ReadableStreamReadResult<Uint8Array>;
+    try {
+      part = await reader.read();
+    } catch (err) {
+      // time limit hit while downloading a big page: keep what arrived (like the size cap does)
+      if (size > 0) break;
+      throw err;
+    }
+    const { done, value } = part;
     if (done) break;
     size += value.byteLength;
     if (size > MAX_BYTES) {
@@ -131,12 +141,19 @@ export interface PageInfo {
   links: string[];
 }
 
-const LANG_SWITCHER = /^(##\s*)?([-|/•]?\s*\b(TR|EN|DE|FR|AR|RU|ES|IT|NL)\b\s*[-|/•]?\s*){2,}$/;
+// "TR | EN | DE", "TR - Türkçe - English"
+const LANG_SWITCHER =
+  /^(##\s*)?([-|/•]?\s*(\b(TR|EN|DE|FR|AR|RU|ES|IT|NL)\b|Türkçe|English|Deutsch|Français|Русский|العربية)\s*[-|/•]?\s*){2,}$/i;
 
-/** A heading line for the chunker; decorations like "• " or "1. " dropped. */
+/**
+ * A heading line for the chunker. Decorations are dropped: bullets, a nested heading's "## "
+ * (<summary><h3>…</h3></summary>) and "?" tooltip buttons. Long text is a sentence, not a
+ * heading (tooltips put their explanation inside <summary>), so it stays a normal line.
+ */
 function heading(inner: string): string {
-  const t = decode(inner.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").replace(/^[•·*–—-]\s*/, "").trim();
-  return t ? `\n\n## ${t}\n` : "\n";
+  const t = decode(inner.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").replace(/^[\s#?•·*–—-]+/, "").trim();
+  if (!t) return "\n";
+  return t.length > 90 ? `\n${t}\n` : `\n\n## ${t}\n`;
 }
 
 /** Dependency-free readable-text extraction, good enough for typical small-business sites. */
@@ -176,6 +193,12 @@ export function extractPage(html: string, pageUrl: URL): PageInfo {
   const text = decode(body)
     .split("\n")
     .map((l) => l.replace(/[ \t ]+/g, " ").trim())
+    // "• Üye olmadan alışveriş yapabilir miyim?" typed as text: a question heading; other "•" lines are list items
+    .map((l) => {
+      const m = /^(?:- )?[•·▪►]\s*(.+)$/.exec(l);
+      if (!m) return l;
+      return /\?$/.test(m[1]) && m[1].length <= 90 ? `## ${m[1]}` : `- ${m[1]}`;
+    })
     // "## ?" tooltip buttons, empty bullets, language switchers ("TR | EN | DE")
     .filter((l) => l && l !== "-" && !/^(## )?\s*$/.test(l) && !/^## [^\p{L}\d]*$/u.test(l) && !LANG_SWITCHER.test(l))
     .join("\n")
@@ -284,8 +307,9 @@ export async function crawlSite(startUrl: string, maxPages = 8): Promise<CrawlRe
   let pages: PageInfo[] = [home];
   const seen = new Set([pageKey(first.url.toString())]);
   const texts = new Set([home.text]);
+  const deadline = Date.now() + CRAWL_BUDGET_MS;
   for (const link of rankLinks(home.links, first.url)) {
-    if (pages.length >= maxPages) break;
+    if (pages.length >= maxPages || Date.now() > deadline) break;
     if (seen.has(pageKey(link))) continue;
     seen.add(pageKey(link));
     try {

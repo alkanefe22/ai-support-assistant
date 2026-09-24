@@ -120,9 +120,27 @@ describe("cleaning real-world sites (cases seen on live sites)", () => {
   });
 
   it("drops tooltip headings, language switchers and heading bullets", () => {
-    const html = `<body><h2>?</h2><p>TR | EN | DE</p><h3>• Üye olmadan alışveriş yapabilir miyim?</h3><p>Evet.</p></body>`;
+    const html = `<body><h2>?</h2><p>TR | EN | DE</p><p>TR - Türkçe - English</p><h3>• Üye olmadan alışveriş yapabilir miyim?</h3><p>Evet.</p></body>`;
     const text = extractPage(html, new URL("https://x.example/")).text;
     expect(text).toBe("## Üye olmadan alışveriş yapabilir miyim?\nEvet.");
+  });
+
+  it("tooltip explanations inside <summary> stay sentences; nested headings are not doubled", () => {
+    const html = `<body><details><summary>?<span>Annual billing by check, ACH, wire, or credit card.</span></summary></details>
+      <details><summary><h3>Could we really add 500 users and still pay $300/month?</h3></summary><p>Yes.</p></details>
+      <details><summary>? The free plan is limited to one project. You can always upgrade for more storage and more people later.</summary></details></body>`;
+    const text = extractPage(html, new URL("https://x.example/")).text;
+    expect(text).toContain("## Annual billing by check, ACH, wire, or credit card.");
+    expect(text).toContain("## Could we really add 500 users and still pay $300/month?\nYes.");
+    expect(text).toContain("\nThe free plan is limited to one project.");
+    expect(text).not.toMatch(/## ##|## \?/);
+  });
+
+  it("'•' lines typed as text: questions become headings, the rest list items", () => {
+    const html = `<body><p>• Üye olmadan alışveriş yapabilir miyim?</p><p>Evet, üye olmadan devam edebilirsiniz.</p><p>• Kapıda ödeme</p></body>`;
+    expect(extractPage(html, new URL("https://x.example/")).text).toBe(
+      "## Üye olmadan alışveriş yapabilir miyim?\nEvet, üye olmadan devam edebilirsiniz.\n- Kapıda ödeme",
+    );
   });
 
   it("the same page under different spellings is read once; legal pages come last", () => {
@@ -173,6 +191,27 @@ describe("SSRF protection", () => {
     const calls = fakeWeb();
     await expect(safeFetch("http://93.184.216.34/")).rejects.toThrow(/okunamaz/);
     expect(calls).toEqual(["http://93.184.216.34/"]);
+  });
+
+  it("a big page that hits the time limit mid-download keeps what arrived", async () => {
+    process.env.TRY_ALLOW_PRIVATE = "1";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        let sent = false;
+        const body = new ReadableStream<Uint8Array>({
+          pull(c) {
+            if (!sent) {
+              sent = true;
+              c.enqueue(new TextEncoder().encode("<html><body><h2>Şubeler</h2><p>Kadıköy Rıhtım Mado, Tel: 0216 000 00 00</p>"));
+            } else c.error(Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" }));
+          },
+        });
+        return new Response(body, { status: 200, headers: { "content-type": "text/html" } });
+      }),
+    );
+    const r = await safeFetch("https://big.example/subeler");
+    expect(r.body).toContain("Kadıköy Rıhtım Mado");
   });
 
   it("refuses non-HTML responses", async () => {
@@ -345,5 +384,27 @@ describe("/api/try and interest routes", () => {
     expect(all.length).toBeGreaterThan(0);
     expect(all.some((a) => a.trial)).toBe(false);
     vi.doUnmock("next/headers");
+  });
+});
+
+describe("address / phone tags (real sites rarely write the words 'adres' or 'telefon')", () => {
+  it("tags address and phone lines, leaves prices and hours alone", async () => {
+    const { indexTextFor } = await import("@/lib/rag/retrieval");
+    const tags = (text: string) => indexTextFor({ heading: "", text }).split("\n").slice(3).join(" ");
+    expect(tags("Atatürk Bulvarı No :30 Hastane Cad. Kayseri / TÜRKİYE T : + 90 352 221 00 77")).toMatch(/adres.*telefon/);
+    expect(tags("Müşteri hizmetleri 0 (850) 393 7070")).toMatch(/telefon/);
+    expect(tags("Ofis tipi beyazlatma 6.500 TL, ev tipi 4.000 TL'dir.")).toBe("");
+    expect(tags("Hafta içi 09:00-19:00, Cumartesi 10:00-16:00 açığız.")).toBe("");
+  });
+
+  it("'Neredesiniz?' finds an address that never says 'adres' (demo mode)", async () => {
+    const store = tempStore();
+    const t = await createTrial(
+      store,
+      { text: "## Kurumsal\nKayseri'nin merkezinde 20 yıldır hizmet veren kliniğimiz, uzman kadrosuyla ağız ve diş sağlığında yanınızda.\n\n## İletişim formu\nAtatürk Bulvarı No:30 (Hastane Cad. Tekden Hastanesi Yanı) Kayseri / TÜRKİYE. Hafta içi 08:30 – 17:30.", businessName: "Klinik" },
+      localEmbedder,
+    );
+    const res = await handleChat({ assistantId: t.assistant.id, message: "Neredesiniz?", lang: "tr" }, { store, llm: null, embedder: localEmbedder });
+    expect(res.answer).toContain("Atatürk Bulvarı No:30");
   });
 });

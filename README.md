@@ -17,7 +17,7 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 324 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 335 otomatik test + tarayıcıda elle doğrulandı |
 | "Kendi sitenizle deneyin" (`/try`) | ✅ **Gerçek sitelerle denendi (25.09.2026, Ollama `qwen3.5:9b` + `bge-m3`):** Basecamp (EN SaaS), DentalPark (diş kliniği), Mado (restoran zinciri), Kahve Dünyası (e-ticaret) 7–19 sn'de asistana dönüştü; adres, telefon, üyelik, deneme süresi, faturalama soruları kaynaklı cevaplandı, konu dışı sorular ve sitede yalnızca özeti olan bilgiler ("devamı için tıklayın") yetkiliye yönlendirildi. JavaScript ile yüklenen içerik (ör. Basecamp paket fiyatları) okunamaz. |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
@@ -372,7 +372,7 @@ işletme başına otomatik eşik; demo modunda bilgi tabanının hiç bilmediği
 
 ## Testler
 
-`npm test` — 324 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 335 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.

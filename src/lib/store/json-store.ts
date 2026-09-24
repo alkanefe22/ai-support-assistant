@@ -10,6 +10,25 @@ import type {
 } from "../types";
 import type { Store } from "./types";
 
+/**
+ * On Windows, replacing a file fails with EPERM/EACCES/EBUSY while another process (antivirus,
+ * search indexer, an editor) briefly holds it open. That lock clears within milliseconds; retry.
+ */
+export async function renameWithRetry(from: string, to: string, attempts = 8): Promise<void> {
+  for (let i = 1; ; i++) {
+    try {
+      return await fs.rename(from, to);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (i >= attempts || !["EPERM", "EACCES", "EBUSY"].includes(code ?? "")) {
+        await fs.rm(from, { force: true });
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, 15 * 2 ** i));
+    }
+  }
+}
+
 interface DbShape {
   version: 1;
   assistants: AssistantSettings[];
@@ -80,7 +99,7 @@ export class JsonStore implements Store {
     await fs.mkdir(path.dirname(this.file), { recursive: true });
     const tmp = `${this.file}.${process.pid}.${Date.now()}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(db), "utf8");
-    await fs.rename(tmp, this.file);
+    await renameWithRetry(tmp, this.file);
     this.loadedMtime = (await fs.stat(this.file)).mtimeMs;
   }
 

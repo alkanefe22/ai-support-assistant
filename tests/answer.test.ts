@@ -71,6 +71,9 @@ describe("'no information' written as prose is a decline", () => {
     "Bu konuda bilgim yok. [[SOURCE:2]]",
     "I don't have information about veneers. [[SOURCE:1]]",
     "Root canal treatment is not mentioned in our information. [[SOURCE:1]]",
+    // verbatim from qwen3.5:9b on a real clinic site whose page only had a teaser (25.09.2026)
+    "Mevcut belgeler implantların ağzınızda ne kadar süre kalacağına dair kesin bir süre vermemektedir; bu konu hakkında detaylı bilgi almak için lütfen \"Devamı için tıklayın\" bağlantısına göz atınız. [[SOURCE:1]]",
+    "For details, click the link on our website. [[SOURCE:1]]",
   ])("handed off: %j", async (reply) => {
     const { res } = await ask("Kanal tedavisi ne kadar tutar?", reply);
     expect(res.handoff).toBe(true);
@@ -82,6 +85,8 @@ describe("'no information' written as prose is a decline", () => {
     "Pazar günleri ve resmi tatillerde kapalıyız.",
     "We do not have an agreement with SGK, but we work with some private insurers.",
     "No, we are closed on Sundays.",
+    "Evet, merkezimiz Pedodonti (çocuk diş hekimliği) ünitesi ile çocuklara hizmet vermektedir.",
+    "Hafta içi masalarımızda ücretsiz Wi-Fi sunmaktayız.",
   ])("a normal answer is not mistaken for a decline: %j", (text) => {
     expect(looksLikeDecline(text)).toBe(false);
   });

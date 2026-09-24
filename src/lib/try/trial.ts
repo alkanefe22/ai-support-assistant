@@ -184,8 +184,9 @@ export async function createTrial(store: Store, input: TrialInput, embedder: Emb
   } catch (err) {
     await store.deleteAssistant(assistant.id);
     console.error("[try] ingest failed", err instanceof Error ? err.message : err);
-    // the embedding provider is down or overloaded; the visitor only needs to know it's temporary
-    throw new TrialError("Yapay zekâ hizmetine şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin.", 503);
+    // embedding provider down/overloaded or a storage hiccup: details go to the log, the visitor
+    // only needs to know it is temporary
+    throw new TrialError("Asistan oluşturulurken geçici bir sorun oluştu. Birkaç dakika sonra tekrar deneyin.", 503);
   }
 
   const headings = (await store.getChunks(assistant.id)).map((c) => suggestionText(c.heading)).filter((h) => /\?$/.test(h) && h.length <= 80);

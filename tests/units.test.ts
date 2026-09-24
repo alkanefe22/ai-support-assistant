@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { chunkText } from "@/lib/rag/chunker";
 import { cosine, localEmbed } from "@/lib/rag/embeddings";
 import { detectLang, normalize, stemMatch } from "@/lib/rag/text";
@@ -80,5 +80,34 @@ describe("rate limiter", () => {
     expect(blocked.retryAfterSec).toBe(60);
     expect(rl.check("other-ip", t + 3).ok).toBe(true);
     expect(rl.check("ip", t + 60_001).ok).toBe(true); // window slid
+  });
+});
+
+describe("renameWithRetry (Windows file locks)", () => {
+  it("retries while the target is briefly locked, then succeeds", async () => {
+    const fsp = await import("node:fs/promises");
+    const { renameWithRetry } = await import("@/lib/store/json-store");
+    const real = fsp.default.rename;
+    let calls = 0;
+    const spy = vi.spyOn(fsp.default, "rename").mockImplementation(async (a, b) => {
+      calls++;
+      if (calls < 3) throw Object.assign(new Error("locked"), { code: "EPERM" });
+      return real(a, b);
+    });
+    const dir = await fsp.default.mkdtemp((await import("node:path")).join((await import("node:os")).tmpdir(), "rn-"));
+    await fsp.default.writeFile(`${dir}/a.tmp`, "x");
+    await renameWithRetry(`${dir}/a.tmp`, `${dir}/db.json`);
+    expect(calls).toBe(3);
+    expect(await fsp.default.readFile(`${dir}/db.json`, "utf8")).toBe("x");
+    spy.mockRestore();
+  });
+
+  it("gives up on other errors at once and removes the temp file", async () => {
+    const fsp = await import("node:fs/promises");
+    const { renameWithRetry } = await import("@/lib/store/json-store");
+    const dir = await fsp.default.mkdtemp((await import("node:path")).join((await import("node:os")).tmpdir(), "rn-"));
+    await fsp.default.writeFile(`${dir}/a.tmp`, "x");
+    await expect(renameWithRetry(`${dir}/a.tmp`, `${dir}/missing/dir/db.json`)).rejects.toThrow();
+    await expect(fsp.default.access(`${dir}/a.tmp`)).rejects.toThrow();
   });
 });

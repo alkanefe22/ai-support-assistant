@@ -50,9 +50,17 @@ export function thresholdsFor(model: string): Thresholds {
   };
 }
 
+// Real sites write an address or phone number without ever saying "adres" / "telefon"
+// ("Atatürk Bulvarı No:30 Kayseri", "T: +90 352 221 00 77"). Tag them so "Neredesiniz?" finds them.
+const ADDRESS = /\b(cad(desi)?|cd|sok(ak|ağı)?|sk|mah(allesi)?|mh|bulvar[ıi]?|blv|street|avenue|ave|road|suite)\b\.?.{0,60}\bno\s*[:.]?\s*\d|\b\d{5}\s+\p{Lu}\p{L}+/iu;
+const PHONE = /(\+\d{2}[\s-]?)?\(?\b0?\d{3}\)?[\s-]\d{3}[\s-]?\d{2}[\s-]?\d{2}\b|\b\d{3}[\s-]\d{3}[\s-]\d{4}\b/;
+
 export function indexTextFor(c: Pick<Chunk, "heading" | "text">): string {
   // The heading is repeated: for FAQ sources it *is* the question, the strongest signal.
-  return `${c.heading}\n${c.heading}\n${c.text}`;
+  const tags = [ADDRESS.test(c.text) ? "adres konum address location" : "", PHONE.test(c.text) ? "telefon iletişim phone contact" : ""]
+    .filter(Boolean)
+    .join(" ");
+  return `${c.heading}\n${c.heading}\n${c.text}${tags ? `\n${tags}` : ""}`;
 }
 
 function containsTerm(chunkStems: Set<string>, alternatives: string[]): boolean {
