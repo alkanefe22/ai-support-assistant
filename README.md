@@ -17,13 +17,14 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 335 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 354 otomatik test + tarayıcıda elle doğrulandı |
 | "Kendi sitenizle deneyin" (`/try`) | ✅ **Gerçek sitelerle denendi (25.09.2026, Ollama `qwen3.5:9b` + `bge-m3`):** Basecamp (EN SaaS), DentalPark (diş kliniği), Mado (restoran zinciri), Kahve Dünyası (e-ticaret) 7–19 sn'de asistana dönüştü; adres, telefon, üyelik, deneme süresi, faturalama soruları kaynaklı cevaplandı, konu dışı sorular ve sitede yalnızca özeti olan bilgiler ("devamı için tıklayın") yetkiliye yönlendirildi. JavaScript ile yüklenen içerik (ör. Basecamp paket fiyatları) okunamaz. |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
 | Yerel model, Ollama | ✅ **Uçtan uca doğrulandı (25.09.2026):** `qwen3.5:9b` + `bge-m3` ile 5 farklı işletmede 289 soru × 3 çalıştırma: 867/867; bkz. [Değerlendirme](#değerlendirme-eval). |
-| Üretim (kalıcı veritabanı, çoklu müşteri, ödeme) | ⚪ Kapsam dışı, bkz. [NEXT_STEPS.md](NEXT_STEPS.md) |
+| Kalıcı veritabanı (Postgres / Neon) | ✅ `DATABASE_URL` ile; JSON deposuyla aynı sözleşme testleri gerçek Postgres (PGlite) üzerinde geçiyor |
+| Üretim (çoklu müşteri, ödeme) | ⚪ Kapsam dışı, bkz. [NEXT_STEPS.md](NEXT_STEPS.md) |
 
 ## Özellikler
 
@@ -205,7 +206,8 @@ BASE_URL=http://localhost:3000 npm run screenshots
 | `MAX_OUTPUT_TOKENS` | `350` | Cevap başına çıktı token sınırı. |
 | `ADMIN_PASSWORD` | — | Panel şifresi. Demo modunda boşsa panel açıktır (uyarı bandı gösterilir); **canlı modda boşsa panel kilitlenir**. |
 | `SESSION_SECRET` | — | Cookie imzası ve IP hash'i için uzun rastgele bir değer. |
-| `DATA_DIR` | `data` | Yerel veritabanı klasörü (Vercel'de otomatik `/tmp`). |
+| `DATABASE_URL` | — | Postgres bağlantısı (Neon). Doluysa tüm veri Postgres'te kalıcı tutulur; tablolar ilk açılışta otomatik oluşur, demo verisi bir kez yüklenir. Boşsa yerel JSON dosyası. |
+| `DATA_DIR` | `data` | Yerel JSON veritabanı klasörü (`DATABASE_URL` yoksa; Vercel'de otomatik `/tmp`). |
 | `TRY_ENABLED` | `true` | `/try` deneme özelliğini açar/kapatır. |
 | `TRY_MAX_PAGES` / `TRY_MAX_CHARS` | `8` / `60000` | Bir denemede okunacak en fazla sayfa ve metin uzunluğu. |
 | `TRY_TTL_HOURS` | `24` | Deneme asistanının ömrü ("Sitemde istiyorum" diyenlerde 7 gün). |
@@ -377,7 +379,7 @@ işletme başına otomatik eşik; demo modunda bilgi tabanının hiç bilmediği
 
 ## Testler
 
-`npm test` — 335 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 354 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
@@ -392,6 +394,7 @@ işletme başına otomatik eşik; demo modunda bilgi tabanının hiç bilmediği
 - `ollama.test.ts` — Ollama sohbet ve embedding istek biçimi, `<think>` bloğunun gizlenmesi, eşiklerin env ile ayarı, uçtan uca akış (fetch taklit edilerek).
 - `i18n.test.ts` — TR/EN asistan ve işletme adları: geri düşme, widget ayar ucu, İngilizce ziyaretçide sistem promptu.
 - `try.test.ts` — `/try`: sayfa okuma (başlık, renk, dil, gezinme/çerez bandı ayıklama), bağlantı önceliği, **SSRF** (özel IP'ler, localhost, metadata adresi, port, kullanıcı adı, özel IP'ye yönlendirme), sahte bir siteden uçtan uca deneme asistanı + kaynaklı cevap, süre dolunca her şeyin silinmesi, API rotasında onay ve IP limiti, "sitemde istiyorum" leadi, deneme asistanlarının panelde listelenmemesi.
+- `pgstore.test.ts` — aynı depo sözleşmesi hem JSON hem Postgres (PGlite, süreç içinde gerçek Postgres) üzerinde: sıralama, silme zinciri, günlük sayaç, parça önbelleğinin geçersiz kılınması, iki sunucu örneğinin aynı veritabanını görmesi, demo verisini yalnızca bir soğuk başlangıcın yüklemesi, tırnak/Türkçe/enjeksiyon benzeri metnin bozulmadan saklanması, tam sohbet akışı.
 - `units.test.ts` — chunker, Türkçe normalizasyon, embedding, rate limiter.
 
 ## Deploy ve üretim notları

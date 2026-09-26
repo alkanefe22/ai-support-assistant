@@ -19,3 +19,7 @@ AGENTS.md
 # local test databases (crawled third-party content)
 data/*/
 !data/seed/
+
+# Vercel CLI link and pulled env files (.env.example stays in the repo)
+.vercel
+.env*.local
