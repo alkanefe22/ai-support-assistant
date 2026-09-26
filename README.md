@@ -343,6 +343,11 @@ başka işletmenin sorusu (giyim mağazasına diş sorusu), konu dışı, sohbet
 **Son sonuç (25.09.2026, `qwen3.5:9b` + `bge-m3`, her soru 3 kez): 867/867 (%100).** Uydurma rakam, yanlış dil ve
 saldırıya uyma sıfır. "Bilmiyorum" eşiği her işletme için **otomatik** hesaplandı (0,44 – 0,47), elle ayar yapılmadı.
 
+`/try` gerçek site turlarından sonra yapılan değişikliklerle (adres/telefon etiketi, yeni red kalıpları, "sayıları
+niteleyicisiyle aktar" kuralı) tekrar (26.09.2026, her soru 1 kez): **289/289**. Bir vaka güncellendi: menüde olan bir
+yemeğin tarifi istendiğinde "tarif veremiyoruz, menümüzde 295 TL" cevabı da kabul ediliyor; tarif adımı içeren cevap
+hâlâ hata sayılıyor.
+
 Yapay zekâsız demo modu aynı sette %78: anlam araması ve takip sorusu çözümü olmadığı için eşanlamlıların ve takip
 sorularının çoğu yetkiliye yönlendirilir. Uydurma rakam demo modunda da sıfır.
 

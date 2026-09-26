@@ -139,7 +139,13 @@ export const BUSINESS_CASES: Case[] = [
   yemek({ cat: "yemek-kb-disi", q: "Canlı müzik var mı?", want: A, heading: /Özel günler/ }),
   yemek({ cat: "yemek-kb-disi", q: "Garson iş ilanınız var mı?", want: H }),
   yemek({ cat: "yemek-konu-disi", q: "Şeffaf plak tedavisi yapıyor musunuz?", want: H }),
-  yemek({ cat: "yemek-konu-disi", q: "Bana karnıyarık tarifi verir misin?", want: H }),
+  // karnıyarık is on the menu: "no recipe, but it's 295 TL on our menu" is a fair reply; a recipe is not
+  yemek({
+    cat: "yemek-konu-disi",
+    q: "Bana karnıyarık tarifi verir misin?",
+    want: ["answer", "handoff"],
+    exclude: [/malzeme|patlıcan(ları)? (kızart|soy|oy)|kıyma(yı)? (kavur|ekle)|fırın(da|a) \d|dakika pişir/i],
+  }),
   yemek({ cat: "yemek-takip", turns: ["Paket servis yapıyor musunuz?"], q: "Minimum tutar ne kadar?", want: A, heading: /Paket/, include: [/400/] }),
   yemek({ cat: "yemek-takip", turns: ["Künefe var mı?"], q: "Peki vegan mı?", want: A, heading: /vegan|Vejetaryen|Alerjen/i }),
   yemek({ cat: "yemek-tuzak", turns: ["Lahmacun var mı?"], q: "Fiyatı ne kadar?", want: H }),
