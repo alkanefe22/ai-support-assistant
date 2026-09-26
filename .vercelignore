@@ -1,0 +1,16 @@
+# Never upload secrets, local data or agent config to Vercel
+.env
+.env.*
+!.env.example
+data/db.json
+data/db.*.json
+data/tmp/
+data/*/
+!data/seed/
+.claude/
+CLAUDE.md
+AGENTS.md
+.next/
+node_modules/
+coverage/
+*.tsbuildinfo
