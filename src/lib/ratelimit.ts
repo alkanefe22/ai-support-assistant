@@ -31,7 +31,11 @@ export class SlidingWindowLimiter {
   }
 }
 
-const g = globalThis as unknown as { __chatLimiter?: SlidingWindowLimiter; __leadLimiter?: SlidingWindowLimiter };
+const g = globalThis as unknown as {
+  __chatLimiter?: SlidingWindowLimiter;
+  __leadLimiter?: SlidingWindowLimiter;
+  __loginLimiter?: SlidingWindowLimiter;
+};
 
 export function chatLimiter() {
   return (g.__chatLimiter ??= new SlidingWindowLimiter(getConfig().rateLimitPerMinute, 60_000));
@@ -39,6 +43,14 @@ export function chatLimiter() {
 
 export function leadLimiter() {
   return (g.__leadLimiter ??= new SlidingWindowLimiter(3, 10 * 60_000));
+}
+
+export const LOGIN_ATTEMPTS = 5;
+export const LOGIN_WINDOW_MS = 5 * 60_000;
+
+/** Admin login: 5 attempts per 5 minutes per IP, against password guessing. */
+export function loginLimiter() {
+  return (g.__loginLimiter ??= new SlidingWindowLimiter(LOGIN_ATTEMPTS, LOGIN_WINDOW_MS));
 }
 
 /** IPs are never stored raw; only a keyed hash is used as the limiter key. */

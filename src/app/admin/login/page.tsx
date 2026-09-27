@@ -5,10 +5,15 @@ import { btnCls, inputCls } from "../ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; retry?: string }>;
+}) {
   // read-only viewers of a public demo may still log in as the owner
   if ((await adminAccess()) === "full") redirect("/admin");
-  const { error } = await searchParams;
+  const { error, retry } = await searchParams;
+  const retryMinutes = Math.min(Math.max(Number.parseInt(retry ?? "", 10) || 5, 1), 5);
   const mode = authMode();
 
   return (
@@ -34,10 +39,16 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               Şifre
             </label>
             <input id="password" name="password" type="password" required autoFocus className={inputCls} />
-            {error && (
+            {error === "rate" ? (
               <p role="alert" className="text-sm text-red-700">
-                Şifre hatalı.
+                Çok fazla deneme. {retryMinutes} dakika sonra tekrar deneyin.
               </p>
+            ) : (
+              error && (
+                <p role="alert" className="text-sm text-red-700">
+                  Şifre hatalı.
+                </p>
+              )
             )}
             <button className={`${btnCls} w-full`}>Giriş</button>
           </form>

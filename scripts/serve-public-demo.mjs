@@ -8,6 +8,9 @@
  *
  * Without --live the provider is forced to demo mode (overrides .env.local, which Next never overrides).
  * With --live the limits from .env.local apply (RATE_LIMIT_PER_MINUTE, DAILY_REQUEST_LIMIT, TRY_DAILY_LIMIT).
+ *
+ * `next start` runs in production mode, so .env.local must define ADMIN_PASSWORD (12+ chars) and
+ * SESSION_SECRET (32+ chars, not the example value); otherwise the server refuses to start.
  */
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";

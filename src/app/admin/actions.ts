@@ -1,11 +1,12 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { checkPassword, createSession, destroySession, requireAdmin, requireWrite } from "@/lib/auth";
 import { ingestDocument, recalibrate, reindexAssistant } from "@/lib/rag/ingest";
 import { extractText, MAX_UPLOAD_BYTES, sourceTypeFor } from "@/lib/rag/parse";
+import { clientIp, hashIp, loginLimiter } from "@/lib/ratelimit";
 import { getStore } from "@/lib/store";
 import type { Lang } from "@/lib/types";
 import { CURRENT_COOKIE, currentAssistant } from "./current";
@@ -24,6 +25,9 @@ function back(path: string, params: Record<string, string>): never {
 }
 
 export async function login(fd: FormData) {
+  // Every attempt counts, so a guesser is slowed down whether or not it succeeds.
+  const limit = loginLimiter().check(hashIp(clientIp(await headers())));
+  if (!limit.ok) back("/admin/login", { error: "rate", retry: String(Math.ceil(limit.retryAfterSec / 60)) });
   if (!checkPassword(str(fd, "password", 200))) back("/admin/login", { error: "1" });
   await createSession();
   redirect("/admin");

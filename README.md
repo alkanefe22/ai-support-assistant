@@ -17,9 +17,11 @@ sizi yetkiliye yönlendireyim" der, ziyaretçinin onayıyla iletişim bilgisini 
 
 | Alan | Durum |
 |---|---|
-| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 354 otomatik test + tarayıcıda elle doğrulandı |
+| Demo modu (API anahtarsız, ücretsiz) | ✅ Uçtan uca çalışıyor, 366 otomatik test + tarayıcıda elle doğrulandı |
 | "Kendi sitenizle deneyin" (`/try`) | ✅ **Gerçek sitelerle denendi (25.09.2026, Ollama `qwen3.5:9b` + `bge-m3`):** Basecamp (EN SaaS), DentalPark (diş kliniği), Mado (restoran zinciri), Kahve Dünyası (e-ticaret) 7–19 sn'de asistana dönüştü; adres, telefon, üyelik, deneme süresi, faturalama soruları kaynaklı cevaplandı, konu dışı sorular ve sitede yalnızca özeti olan bilgiler ("devamı için tıklayın") yetkiliye yönlendirildi. JavaScript ile yüklenen içerik (ör. Basecamp paket fiyatları) okunamaz. |
 | Public salt okunur demo (`PUBLIC_DEMO=true`) | ✅ Sunucu tarafında zorlanıyor, testli |
+| Production'da zayıf/eksik yönetici kimlik bilgisiyle başlamayı reddetme | ✅ Testli, `next start` ile doğrulandı |
+| Yönetici girişine deneme sınırı (IP başına 5 dk'da 5) | ✅ Testli |
 | Canlı mod, Gemini | 🟡 **Kısmen doğrulandı:** model listesi, `gemini-3.5-flash` ve `gemini-embedding-2` gerçek çağrıyla çalıştı; embedding eşiği gerçek verilerle kalibre edildi. **Uçtan uca canlı sohbet testi bekliyor** (ilk denemede sağlayıcı 503/429 verdi). |
 | Canlı mod, Claude | ⚪ Kod hazır, hiç denenmedi |
 | Yerel model, Ollama | ✅ **Uçtan uca doğrulandı (25.09.2026):** `qwen3.5:9b` + `bge-m3` ile 5 farklı işletmede 289 soru × 3 çalıştırma: 867/867; bkz. [Değerlendirme](#değerlendirme-eval). |
@@ -146,6 +148,9 @@ npm run build
 npm run start:public-demo
 ```
 
+`next start` production modunda çalıştığı için `.env.local`'de `ADMIN_PASSWORD` (en az 12 karakter) ve `SESSION_SECRET`
+(en az 32 karakter, örnek değer değil) tanımlı olmalıdır; yoksa sunucu açılmayı reddeder ve eksikleri listeler.
+
 Aynı demoyu `.env.local`'deki **gerçek yapay zekâyla** (Gemini / Claude / Ollama) açmak için. Bu modda `.env.local`'deki
 limitler geçerlidir; `/try` ziyaretçileri önerilen soruları art arda tıkladığı için `RATE_LIMIT_PER_MINUTE` değerini 5'in
 üstünde tutun:
@@ -204,8 +209,8 @@ BASE_URL=http://localhost:3000 npm run screenshots
 | `MAX_QUESTION_CHARS` | `500` | Soru uzunluğu sınırı. |
 | `MAX_CONTEXT_TOKENS` | `1500` | Modele gönderilen bilgi tabanı bağlamının token bütçesi (yaklaşık, 4 karakter ≈ 1 token). |
 | `MAX_OUTPUT_TOKENS` | `350` | Cevap başına çıktı token sınırı. |
-| `ADMIN_PASSWORD` | — | Panel şifresi. Demo modunda boşsa panel açıktır (uyarı bandı gösterilir); **canlı modda boşsa panel kilitlenir**. |
-| `SESSION_SECRET` | — | Cookie imzası ve IP hash'i için uzun rastgele bir değer. |
+| `ADMIN_PASSWORD` | — | Panel şifresi. **Production'da zorunlu, en az 12 karakter**; yoksa sunucu başlamaz. Yalnızca `npm run dev` ile demo modunda boş bırakılabilir (panel açık, uyarı bandı gösterilir). |
+| `SESSION_SECRET` | — | Cookie imzası ve IP hash'i. **Production'da zorunlu, en az 32 karakter** ve `.env.example`'daki örnek değer olamaz (`openssl rand -hex 32`); yoksa sunucu başlamaz. |
 | `DATABASE_URL` | — | Postgres bağlantısı (Neon). Doluysa tüm veri Postgres'te kalıcı tutulur; tablolar ilk açılışta otomatik oluşur, demo verisi bir kez yüklenir. Boşsa yerel JSON dosyası. |
 | `DATA_DIR` | `data` | Yerel JSON veritabanı klasörü (`DATABASE_URL` yoksa; Vercel'de otomatik `/tmp`). |
 | `TRY_ENABLED` | `true` | `/try` deneme özelliğini açar/kapatır. |
@@ -224,6 +229,8 @@ BASE_URL=http://localhost:3000 npm run screenshots
   anahtar, kota ve maliyet yoktur, veri dışarı çıkmaz. Canlı testleri sınırsız tekrarlamak için idealdir. Kurulum:
   `ollama pull gemma3:12b` ve `ollama pull bge-m3`, sonra `npm run calibrate` ve `npm run live-check`.
 - **Public salt okunur demo** (`PUBLIC_DEMO=true`): Portföy için yayına alınan sürümde ziyaretçiler paneli şifresiz gezer.
+  Production'da (`next start`, Vercel) `ADMIN_PASSWORD` ve `SESSION_SECRET` yine de zorunludur: sahip bu şifreyle giriş
+  yapar, eksik ya da zayıf değerlerle sunucu hiç başlamaz. Aşağıdaki "`ADMIN_PASSWORD` yok" sütunu yalnızca `npm run dev` içindir.
 
   | Ziyaretçi | `ADMIN_PASSWORD` yok | `ADMIN_PASSWORD` var |
   |---|---|---|
@@ -379,7 +386,7 @@ işletme başına otomatik eşik; demo modunda bilgi tabanının hiç bilmediği
 
 ## Testler
 
-`npm test` — 354 test (Vitest), hepsi ağ erişimi olmadan:
+`npm test` — 366 test (Vitest), hepsi ağ erişimi olmadan:
 
 - `retrieval.test.ts` — 22 alan içi soru doğru bölümü buluyor, 11 alan dışı soru eşiği geçemiyor, dil tercihi, boş bilgi tabanı.
 - `chat.test.ts` — kaynaklı cevap, EN cevap, "bilmiyorum" + cevaplanamayan kaydı, selamlama, sohbet geçmişi, uzunluk sınırı, model `NO_ANSWER`/hata durumları, bağlam bütçesi.
@@ -418,6 +425,11 @@ sahte değer gönderilebileceği için rate limit anahtarını güvenilir proxy 
 - **Toplanan veriler:** ziyaretçinin soruları ve asistan cevapları (sohbet geçmişi), cevaplanamayan sorular ve yalnızca
   ziyaretçi **açık onay kutusunu işaretlediğinde** ad + e-posta/telefon (lead). Lead ucu onay olmadan kayıt yapmaz.
 - **IP adresleri saklanmaz.** Rate limit için yalnızca `SESSION_SECRET` ile anahtarlanmış HMAC hash'i bellekte tutulur.
+- **Yönetici girişi** IP başına 5 dakikada 5 denemeyle sınırlıdır (`src/lib/ratelimit.ts`); sınır dolunca doğru şifre de
+  reddedilir. Sayaç sunucu örneği başınadır, çok örnekli kurulumda paylaşımlı bir depoya taşınmalıdır.
+- **Production başlangıç kontrolü** (`src/instrumentation-node.ts`, `src/lib/env-check.ts`): eksik ya da zayıf
+  `ADMIN_PASSWORD` / `SESSION_SECRET` ile sunucu açılmaz. Kod içindeki `dev-only-insecure-secret` yedeği yalnızca
+  geliştirmede kullanılabilir.
 - **Çerez yok:** Widget çerez kullanmaz; sohbet kimliği tarayıcı sekmesi kapanınca silinen `sessionStorage`'da tutulur.
 - **Public demo:** Salt okunur panelde ad, e-posta ve telefonlar maskelenir; CSV dışa aktarma kapalıdır. Demo sitesi
   kurgusaldır; ziyaretçilerin gerçek kişisel bilgi girmemesi önerilir.
