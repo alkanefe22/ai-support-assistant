@@ -2,7 +2,7 @@
 
 [English](README.md) · **Türkçe**
 
-**Canlı demo:** _yakında_ · Kaynak: [github.com/alkanefe22/ai-support-assistant](https://github.com/alkanefe22/ai-support-assistant)
+**Canlı demo:** [ai-support-assistant-beta.vercel.app](https://ai-support-assistant-beta.vercel.app) (demo modu: yapay zekâ anahtarı yok, panel salt okunur, `/try` kapalı) · Kaynak: [github.com/alkanefe22/ai-support-assistant](https://github.com/alkanefe22/ai-support-assistant)
 
 İşletmenin dokümanlarından bilgi tabanı oluşturan, sitesine **tek satırlık script** ile eklenen ve yalnızca bilgi
 tabanındaki içerikten, **kaynak göstererek** cevap veren destek asistanı. Bilgi yoksa uydurmaz: "bu konuda bilgim yok,

@@ -2,7 +2,7 @@
 
 **English** · [Türkçe](README.tr.md)
 
-**Live demo:** _coming soon_ · Source: [github.com/alkanefe22/ai-support-assistant](https://github.com/alkanefe22/ai-support-assistant)
+**Live demo:** [ai-support-assistant-beta.vercel.app](https://ai-support-assistant-beta.vercel.app) (demo mode: no AI key, read-only panel, `/try` switched off) · Source: [github.com/alkanefe22/ai-support-assistant](https://github.com/alkanefe22/ai-support-assistant)
 
 A support assistant that builds a knowledge base from a business's documents, is added to its website with a
 **single script tag**, and answers **only from that knowledge base, citing its source**. When the answer isn't there it
