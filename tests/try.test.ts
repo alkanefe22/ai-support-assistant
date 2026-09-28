@@ -377,6 +377,21 @@ describe("/api/try and interest routes", () => {
     expect((await store.listLeads(body.id))[0]).toMatchObject({ name: "Ali", contact: "ali@ornek.com" });
   });
 
+  it("TRY_ENABLED=false closes the API and the page (the public demo deploys this way)", async () => {
+    process.env.TRY_ENABLED = "false";
+    try {
+      const res = await post({ text, consent: "1" }, "5.5.5.5");
+      expect(res.status).toBe(503);
+      const { renderToStaticMarkup } = await import("react-dom/server");
+      const { default: TryPage } = await import("@/app/try/page");
+      const html = renderToStaticMarkup(TryPage());
+      expect(html).toContain("kapalı");
+      expect(html).not.toContain("<form");
+    } finally {
+      delete process.env.TRY_ENABLED;
+    }
+  });
+
   it("the admin assistant switcher never lists trials", async () => {
     vi.doMock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
     const { currentAssistant } = await import("@/app/admin/current");

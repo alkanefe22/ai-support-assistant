@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
 import { DEMO_ASSISTANT_ID } from "@/lib/seed";
+import { trialConfig } from "@/lib/try/trial";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ const FEATURES = [
 
 export default function Home() {
   const { provider } = getConfig();
+  const tryEnabled = trialConfig().enabled;
   const snippet = `<script src="https://YOUR-DOMAIN/widget.js" data-assistant="${DEMO_ASSISTANT_ID}" async></script>`;
   return (
     <main className="mx-auto max-w-5xl px-4 py-12 sm:py-20">
@@ -28,10 +30,19 @@ export default function Home() {
         bildiği konularda, kaynak göstererek cevap veren destek asistanı.
       </p>
       <div className="mt-8 flex flex-wrap gap-3">
-        <Link href="/try" className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">
-          Kendi sitenizle deneyin →
-        </Link>
-        <a href="/demo" className="rounded-lg bg-white px-5 py-3 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50">
+        {tryEnabled && (
+          <Link href="/try" className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">
+            Kendi sitenizle deneyin →
+          </Link>
+        )}
+        <a
+          href="/demo"
+          className={
+            tryEnabled
+              ? "rounded-lg bg-white px-5 py-3 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+              : "rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800"
+          }
+        >
           Demo siteyi aç (TR)
         </a>
         <a href="/demo?lang=en" className="rounded-lg bg-white px-5 py-3 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50">

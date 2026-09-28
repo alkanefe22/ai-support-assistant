@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getConfig } from "@/lib/config";
+import { trialConfig } from "@/lib/try/trial";
 import { TryForm } from "./TryForm";
 
 export const metadata: Metadata = {
@@ -18,6 +19,25 @@ const POINTS = [
 
 export default function TryPage() {
   const { provider } = getConfig();
+  // TRY_ENABLED=false (e.g. the public portfolio demo): no crawling, no form — point to the demo site instead.
+  if (!trialConfig().enabled) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
+        <div className="max-w-md text-center">
+          <h1 className="text-2xl font-bold text-slate-900">Bu sunucuda &quot;Kendi sitenizle deneyin&quot; kapalı</h1>
+          <p className="mt-3 text-slate-600">Asistanı hazır demo sitesinde deneyebilirsiniz.</p>
+          <div className="mt-6 flex justify-center gap-3">
+            <Link href="/demo" className="rounded-lg bg-teal-700 px-5 py-3 font-semibold text-white hover:bg-teal-800">
+              Demo siteyi aç
+            </Link>
+            <Link href="/" className="rounded-lg bg-white px-5 py-3 font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50">
+              Ana sayfa
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
   return (
     <main className="min-h-screen bg-gradient-to-b from-teal-50 to-slate-50">
       <div className="mx-auto grid max-w-5xl gap-10 px-4 py-12 md:grid-cols-[1fr_420px] md:py-20">
